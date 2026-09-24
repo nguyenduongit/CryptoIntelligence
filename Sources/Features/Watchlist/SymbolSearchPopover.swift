@@ -136,5 +136,9 @@ public struct SymbolSearchPopover: View {
         .padding(12)
         .frame(width: 320)
         .background(AppTheme.darkSidebarBg)
+        .onDisappear {
+            query = ""
+            viewModel.updateSearchQuery("")
+        }
     }
 }

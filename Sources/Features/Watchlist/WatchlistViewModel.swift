@@ -96,7 +96,6 @@ public final class WatchlistViewModel: @unchecked Sendable {
     }
     
     public func updateSearchQuery(_ query: String) {
-        self.searchText = query
         if query.trimmingCharacters(in: .whitespaces).isEmpty {
             self.searchResults = []
             return
