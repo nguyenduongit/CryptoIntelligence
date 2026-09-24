@@ -1,5 +1,16 @@
 import Foundation
 
+public enum ConfluenceResearchError: LocalizedError, Sendable {
+    case marketDataUnavailable(String)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .marketDataUnavailable(let symbol):
+            return "Không thể tải dữ liệu giá thị trường trực tiếp cho \(symbol) từ Binance. Vui lòng kiểm tra kết nối mạng."
+        }
+    }
+}
+
 public actor ConfluenceResearchEngine {
     public static let shared = ConfluenceResearchEngine()
     
@@ -28,12 +39,11 @@ public actor ConfluenceResearchEngine {
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
         
         // 1. Fetch live market price, 24h performance & real candle history
-        var currentPrice: Double = 1.0
-        var change24h: Double = 0.0
-        if let (price, change, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol) {
-            currentPrice = price
-            change24h = change
+        guard let (price, change, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
+            throw ConfluenceResearchError.marketDataUnavailable(cleanSymbol)
         }
+        let currentPrice = price
+        let change24h = change
         let candles = (try? await candleProvider.fetchHistoricalCandles(symbol: cleanSymbol, timeframe: .h4, limit: 60)) ?? []
         
         // 2. Fetch On-Chain & ETF data
@@ -97,20 +107,20 @@ public actor ConfluenceResearchEngine {
         candles: [Candle]
     ) -> PillarScoreItem {
         guard candles.count >= 20 else {
-            var fallbackScore = 70
-            var fallbackSignal: PillarSignal = .bullish
+            var fallbackScore = 50
+            var fallbackSignal: PillarSignal = .neutral
             if change24h > 5.0 {
-                fallbackScore = 82
-                fallbackSignal = .strongBullish
+                fallbackScore = 58
+                fallbackSignal = .bullish
             } else if change24h < -5.0 {
-                fallbackScore = 48
+                fallbackScore = 42
                 fallbackSignal = .bearish
             }
             return PillarScoreItem(
                 pillar: .technical,
                 score: fallbackScore,
                 signal: fallbackSignal,
-                summary: "Đang đồng bộ nến 4H từ Binance. Giá biến động 24h: \(String(format: "%+.2f", change24h))%."
+                summary: "Chưa đủ tối thiểu 20 nến 4H để tính toán chỉ báo (hiện có \(candles.count) nến). Điểm kỹ thuật ở mức Trung tính (\(fallbackScore)/100). Biến động 24h: \(String(format: "%+.2f", change24h))%."
             )
         }
         
