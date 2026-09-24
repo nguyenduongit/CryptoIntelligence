@@ -78,4 +78,12 @@ struct ProjectProfileTests {
         let sui = try await provider.fetchProjectProfile(for: "SUIUSDT")
         #expect(sui.competitors.first?.tpsRealWorld ?? 0 > 2000)
     }
+    
+    @Test("Test ProjectDataProvider throws dataUnavailable for unknown assets")
+    func testProjectDataProviderUnknownAsset() async {
+        let provider = ProjectDataProvider()
+        await #expect(throws: ProjectProfileError.self) {
+            try await provider.fetchProjectProfile(for: "UNKNOWNCOINUSDT")
+        }
+    }
 }

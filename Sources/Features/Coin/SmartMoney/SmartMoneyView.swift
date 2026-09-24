@@ -70,20 +70,20 @@ public struct SmartMoneyView: View {
                         selectedFilter: $viewModel.selectedSwapFilter
                     )
                 } else if let err = viewModel.errorMessage {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(AppTheme.warningYellow)
-                        Text(err)
-                            .font(.system(size: 13))
-                            .foregroundColor(.white)
-                        Button("Thử lại") {
-                            viewModel.loadData()
-                        }
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(AppTheme.accentBlue)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 250)
+                    DataUnavailableView(
+                        title: "Smart Money & Dòng Tiền DEX",
+                        symbol: symbol,
+                        iconName: "dollarsign.arrow.circlepath",
+                        message: err,
+                        onRetry: { viewModel.loadData() }
+                    )
+                } else {
+                    DataUnavailableView(
+                        title: "Smart Money & Dòng Tiền DEX",
+                        symbol: symbol,
+                        iconName: "dollarsign.arrow.circlepath",
+                        onRetry: { viewModel.loadData() }
+                    )
                 }
             }
             .padding(14)

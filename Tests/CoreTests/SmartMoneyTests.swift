@@ -87,4 +87,12 @@ struct SmartMoneyTests {
         #expect(sol.freshWallets.first?.ageHours ?? 0 > 0)
         #expect(sol.freshWallets.first?.accumulatedAmountUSD ?? 0 > 500_000)
     }
+    
+    @Test("Test SmartMoneyDataProvider throws dataUnavailable for unknown assets")
+    func testSmartMoneyDataProviderUnknownAsset() async {
+        let provider = SmartMoneyDataProvider()
+        await #expect(throws: SmartMoneyError.self) {
+            try await provider.fetchSmartMoneyProfile(for: "UNKNOWNCOINUSDT")
+        }
+    }
 }

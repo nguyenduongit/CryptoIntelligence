@@ -82,4 +82,12 @@ struct TokenomicsTests {
         #expect(btc.utilityInfo.hasFeeBurnMechanism == false)
         #expect(btc.vestingSchedule.last?.circulatingPercent == 100.0)
     }
+    
+    @Test("Test TokenomicsDataProvider throws dataUnavailable for unknown assets")
+    func testTokenomicsDataProviderUnknownAsset() async {
+        let provider = TokenomicsDataProvider()
+        await #expect(throws: TokenomicsError.self) {
+            try await provider.fetchTokenomics(for: "UNKNOWNCOINUSDT")
+        }
+    }
 }

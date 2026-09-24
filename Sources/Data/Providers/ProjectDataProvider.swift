@@ -1,5 +1,16 @@
 import Foundation
 
+public enum ProjectProfileError: LocalizedError, Sendable {
+    case dataUnavailable(String)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .dataUnavailable(let symbol):
+            return "Chưa có hồ sơ kỹ thuật & phân tích dự án được xác thực cho \(symbol) (Data Unavailable)."
+        }
+    }
+}
+
 public actor ProjectDataProvider {
     public static let shared = ProjectDataProvider()
     
@@ -8,10 +19,14 @@ public actor ProjectDataProvider {
     public func fetchProjectProfile(for symbol: String) async throws -> ProjectProfile {
         let cleanSymbol = symbol.uppercased()
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
-        return buildProjectProfile(baseAsset: baseAsset, symbol: cleanSymbol)
+        
+        guard let profile = buildProjectProfile(baseAsset: baseAsset, symbol: cleanSymbol) else {
+            throw ProjectProfileError.dataUnavailable(cleanSymbol)
+        }
+        return profile
     }
     
-    private func buildProjectProfile(baseAsset: String, symbol: String) -> ProjectProfile {
+    private func buildProjectProfile(baseAsset: String, symbol: String) -> ProjectProfile? {
         let competitors = buildCompetitors(baseAsset: baseAsset)
         let developerActivity = buildDeveloperActivity(baseAsset: baseAsset)
         
@@ -199,40 +214,7 @@ public actor ProjectDataProvider {
             )
             
         default:
-            return ProjectProfile(
-                symbol: symbol,
-                baseAsset: baseAsset,
-                projectName: "\(baseAsset) Protocol",
-                tagline: "Giao thức hạ tầng phi tập trung tiên tiến phục vụ nền kinh tế Web3",
-                launchYear: 2022,
-                consensusMechanism: "Proof-of-Stake / Smart Contract Protocol",
-                programmingLanguage: "Rust, Solidity, TypeScript",
-                problemSolved: "Tăng cường khả năng mở rộng, giảm thiểu chi phí giao dịch và nâng cao tính kết nối giữa các ứng dụng phi tập trung.",
-                technicalArchitecture: "Kiến trúc mô-đun hóa linh hoạt, tích hợp các chuẩn giao tiếp liên chuỗi an toàn và môi trường thực thi hiệu năng cao.",
-                founders: [
-                    TeamMember(
-                        name: "Core Contributors Team",
-                        role: "Đội Ngũ Kỹ Sư & Nhà Nghiên Cứu",
-                        bio: "Tập hợp các kỹ sư phần mềm giàu kinh nghiệm từ các dự án mã nguồn mở Web3 và viện nghiên cứu công nghệ uy tín.",
-                        previousExperience: ["Web3 Foundation", "Open Source Software Community"]
-                    )
-                ],
-                roadmap: [
-                    ProjectMilestone(quarterYear: "Giai đoạn 1", title: "Ra mắt Genesis & Core Network", description: "Khởi tạo mạng lưới và triển khai các chức năng cốt lõi.", isCompleted: true),
-                    ProjectMilestone(quarterYear: "Giai đoạn 2", title: "Mở rộng Hệ sinh thái & SDK", description: "Hỗ trợ nhà phát triển xây dựng dApps và tích hợp đối tác thanh khoản.", isCompleted: true),
-                    ProjectMilestone(quarterYear: "Giai đoạn 3", title: "Phân cấp Hoàn toàn & DAO", description: "Chuyển giao quyền quản trị hoàn toàn cho cộng đồng.", isCompleted: false)
-                ],
-                partners: [
-                    EcosystemPartner(name: "Hệ Sinh Thái dApps", category: "DeFi & Web3", description: "Mạng lưới đối tác tích hợp giao thức trên các sàn DEX và hạ tầng Oracle.")
-                ],
-                officialLinks: [
-                    OfficialResourceLink(title: "Website", url: "https://coinmarketcap.com", iconName: "globe"),
-                    OfficialResourceLink(title: "Mã nguồn GitHub", url: "https://github.com", iconName: "chevron.left.forwardslash.chevron.right"),
-                    OfficialResourceLink(title: "Trình duyệt Khối", url: "https://etherscan.io", iconName: "magnifyingglass")
-                ],
-                competitors: competitors,
-                developerActivity: developerActivity
-            )
+            return nil
         }
     }
     
@@ -260,12 +242,7 @@ public actor ProjectDataProvider {
                 CompetitorBenchmarkItem(name: "Avalanche (C-Chain)", tpsRealWorld: 45, timeToFinality: "1.0 s", nakamotoCoefficient: 28, avgTransactionFeeUSD: 0.08)
             ]
         default:
-            return [
-                CompetitorBenchmarkItem(name: "\(baseAsset) Network", tpsRealWorld: 1500, timeToFinality: "1.5 s", nakamotoCoefficient: 15, avgTransactionFeeUSD: 0.005, isTargetCoin: true),
-                CompetitorBenchmarkItem(name: "Solana (SOL)", tpsRealWorld: 3200, timeToFinality: "400 ms", nakamotoCoefficient: 19, avgTransactionFeeUSD: 0.0003),
-                CompetitorBenchmarkItem(name: "Sui (SUI)", tpsRealWorld: 4500, timeToFinality: "390 ms", nakamotoCoefficient: 11, avgTransactionFeeUSD: 0.001),
-                CompetitorBenchmarkItem(name: "Ethereum L1", tpsRealWorld: 15, timeToFinality: "12 phút", nakamotoCoefficient: 2, avgTransactionFeeUSD: 2.10)
-            ]
+            return []
         }
     }
     
@@ -280,7 +257,7 @@ public actor ProjectDataProvider {
         case "SUI":
             return DeveloperActivityMetrics(monthlyCommits: 880, activeMonthlyDevelopers: 140, totalGitHubStars: 6400, openPullRequests: 42, lastCommitAgo: "19 phút trước")
         default:
-            return DeveloperActivityMetrics(monthlyCommits: 350, activeMonthlyDevelopers: 65, totalGitHubStars: 4200, openPullRequests: 28, lastCommitAgo: "45 phút trước")
+            return DeveloperActivityMetrics(monthlyCommits: 0, activeMonthlyDevelopers: 0, totalGitHubStars: 0, openPullRequests: 0, lastCommitAgo: "Không có dữ liệu")
         }
     }
 }

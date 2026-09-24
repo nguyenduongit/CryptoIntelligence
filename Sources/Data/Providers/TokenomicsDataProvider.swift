@@ -1,5 +1,16 @@
 import Foundation
 
+public enum TokenomicsError: LocalizedError, Sendable {
+    case dataUnavailable(String)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .dataUnavailable(let symbol):
+            return "Chưa có dữ liệu phân tích Tokenomics & Lịch Vesting được xác thực cho \(symbol) (Data Unavailable)."
+        }
+    }
+}
+
 public actor TokenomicsDataProvider {
     public static let shared = TokenomicsDataProvider()
     
@@ -14,17 +25,25 @@ public actor TokenomicsDataProvider {
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
         
         // Fetch current price from 24h ticker for accurate live USD valuations
-        var currentPrice: Double = 1.0
-        if let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol) {
-            currentPrice = price
+        guard let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
+            throw TokenomicsError.dataUnavailable(cleanSymbol)
         }
         
-        return buildProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: currentPrice)
+        guard let profile = buildProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price) else {
+            throw TokenomicsError.dataUnavailable(cleanSymbol)
+        }
+        
+        return profile
     }
     
-    private func buildProfile(baseAsset: String, symbol: String, currentPrice: Double) -> TokenomicsProfile {
-        let vestingSchedule = buildVestingSchedule(baseAsset: baseAsset)
-        let utilityInfo = buildUtilityInfo(baseAsset: baseAsset)
+    private func buildProfile(baseAsset: String, symbol: String, currentPrice: Double) -> TokenomicsProfile? {
+        guard let vestingSchedule = buildVestingSchedule(baseAsset: baseAsset),
+              let utilityInfo = buildUtilityInfo(baseAsset: baseAsset) else {
+            return nil
+        }
+        
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withDashSeparatorInDate]
         
         switch baseAsset {
         case "BTC":
@@ -90,6 +109,7 @@ public actor TokenomicsDataProvider {
             let total = 585_000_000.0
             let mc = circ * currentPrice
             let fdv = total * currentPrice
+            let solUnlockDate = isoFormatter.date(from: "2026-10-01T00:00:00Z") ?? Date()
             return TokenomicsProfile(
                 symbol: symbol,
                 baseAsset: baseAsset,
@@ -113,8 +133,8 @@ public actor TokenomicsDataProvider {
                 ],
                 upcomingUnlocks: [
                     TokenUnlockEvent(
-                        unlockDate: Date().addingTimeInterval(86400 * 15),
-                        category: "Phần thưởng Staking Validators (Linear)",
+                        unlockDate: solUnlockDate,
+                        category: "Phần thưởng Staking Validators (Epoch Lạm phát)",
                         tokenAmount: 620_000,
                         valueUSD: 620_000 * currentPrice,
                         percentOfCirculating: 0.13,
@@ -164,6 +184,8 @@ public actor TokenomicsDataProvider {
             let maxS = 10_000_000_000.0
             let mc = circ * currentPrice
             let fdv = maxS * currentPrice
+            let suiOctDate = isoFormatter.date(from: "2026-10-01T00:00:00Z") ?? Date()
+            let suiNovDate = isoFormatter.date(from: "2026-11-01T00:00:00Z") ?? Date()
             return TokenomicsProfile(
                 symbol: symbol,
                 baseAsset: baseAsset,
@@ -188,7 +210,7 @@ public actor TokenomicsDataProvider {
                 ],
                 upcomingUnlocks: [
                     TokenUnlockEvent(
-                        unlockDate: Date().addingTimeInterval(86400 * 12),
+                        unlockDate: suiOctDate,
                         category: "Community Reserve & Early Contributors (Cliff)",
                         tokenAmount: 64_190_000,
                         valueUSD: 64_190_000 * currentPrice,
@@ -197,7 +219,7 @@ public actor TokenomicsDataProvider {
                         riskLevel: .high
                     ),
                     TokenUnlockEvent(
-                        unlockDate: Date().addingTimeInterval(86400 * 42),
+                        unlockDate: suiNovDate,
                         category: "Series A & B Investors (Cliff)",
                         tokenAmount: 64_190_000,
                         valueUSD: 64_190_000 * currentPrice,
@@ -216,6 +238,7 @@ public actor TokenomicsDataProvider {
             let maxS = 10_000_000_000.0
             let mc = circ * currentPrice
             let fdv = maxS * currentPrice
+            let arbUnlockDate = isoFormatter.date(from: "2026-10-16T00:00:00Z") ?? Date()
             return TokenomicsProfile(
                 symbol: symbol,
                 baseAsset: baseAsset,
@@ -240,7 +263,7 @@ public actor TokenomicsDataProvider {
                 ],
                 upcomingUnlocks: [
                     TokenUnlockEvent(
-                        unlockDate: Date().addingTimeInterval(86400 * 25),
+                        unlockDate: arbUnlockDate,
                         category: "Team & Investors Unlock (Cliff)",
                         tokenAmount: 92_650_000,
                         valueUSD: 92_650_000 * currentPrice,
@@ -255,50 +278,11 @@ public actor TokenomicsDataProvider {
             )
             
         default:
-            let estimatedCirc = 1_000_000_000.0
-            let estimatedTotal = 1_500_000_000.0
-            let mc = estimatedCirc * currentPrice
-            let fdv = estimatedTotal * currentPrice
-            return TokenomicsProfile(
-                symbol: symbol,
-                baseAsset: baseAsset,
-                tokenStandard: "Tiêu chuẩn Token Hệ sinh thái",
-                primaryUseCases: ["Thanh toán phí dịch vụ", "Bỏ phiếu quản trị giao thức", "Staking nhận thưởng"],
-                supplyMetrics: TokenSupplyMetrics(
-                    circulatingSupply: estimatedCirc,
-                    totalSupply: estimatedTotal,
-                    maxSupply: estimatedTotal,
-                    marketCapUSD: mc,
-                    fdvUSD: fdv,
-                    mcFdvRatio: estimatedCirc / estimatedTotal,
-                    annualInflationRate: 4.5,
-                    isBurnActive: false
-                ),
-                allocations: [
-                    TokenAllocationItem(category: "Cộng đồng & Hệ sinh thái", percentage: 45.0, tokenAmount: estimatedTotal * 0.45, colorHex: "#00E676", description: "Tài trợ dApp, thanh khoản DEX và airdrop."),
-                    TokenAllocationItem(category: "Đội ngũ sáng lập & Cố vấn", percentage: 25.0, tokenAmount: estimatedTotal * 0.25, colorHex: "#2979FF", description: "Khóa 12 tháng, mở khóa dần 36 tháng."),
-                    TokenAllocationItem(category: "Nhà đầu tư sớm (Private Sale)", percentage: 20.0, tokenAmount: estimatedTotal * 0.20, colorHex: "#651FFF", description: "Vòng hạt giống và chiến lược."),
-                    TokenAllocationItem(category: "Ngân quỹ dự trữ (Treasury)", percentage: 10.0, tokenAmount: estimatedTotal * 0.10, colorHex: "#FF9100", description: "Bảo đảm hoạt động dài hạn của dự án.")
-                ],
-                upcomingUnlocks: [
-                    TokenUnlockEvent(
-                        unlockDate: Date().addingTimeInterval(86400 * 30),
-                        category: "Phân bổ Mở khóa Định kỳ (Linear)",
-                        tokenAmount: estimatedTotal * 0.015,
-                        valueUSD: (estimatedTotal * 0.015) * currentPrice,
-                        percentOfCirculating: 2.25,
-                        unlockType: .linear,
-                        riskLevel: .medium
-                    )
-                ],
-                vestingSchedule: vestingSchedule,
-                utilityInfo: utilityInfo,
-                vestingNotes: "Dự án áp dụng lịch phân bổ tiêu chuẩn ngành Web3 với thời gian khóa (Cliff) 6 - 12 tháng đối với Team và Nhà đầu tư, sau đó mở khóa tuyến tính kéo dài 24 - 48 tháng để giảm thiểu áp lực bán xả đột ngột."
-            )
+            return nil
         }
     }
     
-    private func buildVestingSchedule(baseAsset: String) -> [VestingSchedulePoint] {
+    private func buildVestingSchedule(baseAsset: String) -> [VestingSchedulePoint]? {
         switch baseAsset {
         case "BTC":
             return [
@@ -324,6 +308,14 @@ public actor TokenomicsDataProvider {
                 VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 97.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 3.0),
                 VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 0.0)
             ]
+        case "BNB":
+            return [
+                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
+                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
+                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
+                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
+                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0)
+            ]
         case "SUI":
             return [
                 VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 27.6, teamLockedPercent: 20.0, investorsLockedPercent: 14.0, treasuryLockedPercent: 38.4),
@@ -333,18 +325,20 @@ public actor TokenomicsDataProvider {
                 VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 96.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 4.0),
                 VestingSchedulePoint(yearLabel: "2029", circulatingPercent: 100.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 0.0)
             ]
-        default:
+        case "ARB":
             return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 45.0, teamLockedPercent: 20.0, investorsLockedPercent: 15.0, treasuryLockedPercent: 20.0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 65.0, teamLockedPercent: 12.0, investorsLockedPercent: 8.0, treasuryLockedPercent: 15.0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: 82.0, teamLockedPercent: 5.0, investorsLockedPercent: 3.0, treasuryLockedPercent: 10.0),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 94.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 6.0),
+                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 35.5, teamLockedPercent: 26.9, investorsLockedPercent: 17.5, treasuryLockedPercent: 20.1),
+                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 55.0, teamLockedPercent: 18.0, investorsLockedPercent: 12.0, treasuryLockedPercent: 15.0),
+                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: 74.0, teamLockedPercent: 10.0, investorsLockedPercent: 6.0, treasuryLockedPercent: 10.0),
+                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 90.0, teamLockedPercent: 4.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 6.0),
                 VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 0.0)
             ]
+        default:
+            return nil
         }
     }
     
-    private func buildUtilityInfo(baseAsset: String) -> TokenUtilityInfo {
+    private func buildUtilityInfo(baseAsset: String) -> TokenUtilityInfo? {
         switch baseAsset {
         case "BTC":
             return TokenUtilityInfo(
@@ -391,15 +385,17 @@ public actor TokenomicsDataProvider {
                 feeBurnDetails: "Áp dụng cơ chế Storage Fund (quỹ lưu trữ): người dùng trả phí lưu trữ dữ liệu on-chain và được hoàn lại khi xóa dữ liệu.",
                 feeDiscountPercentage: nil
             )
-        default:
+        case "ARB":
             return TokenUtilityInfo(
-                stakingAPR: 5.0,
+                stakingAPR: nil,
                 hasGovernanceRights: true,
-                governanceDetails: "Bỏ phiếu tham gia quản trị DAO và biểu quyết các đề xuất nâng cấp giao thức.",
+                governanceDetails: "Bỏ phiếu quản trị Arbitrum DAO, quản lý kho bạc và đề xuất phân bổ ngân quỹ phát triển.",
                 hasFeeBurnMechanism: false,
-                feeBurnDetails: "Chưa kích hoạt cơ chế đốt token định kỳ.",
+                feeBurnDetails: "Chưa kích hoạt cơ chế đốt token định kỳ; lợi nhuận mạng Sequencer nộp về kho bạc DAO.",
                 feeDiscountPercentage: nil
             )
+        default:
+            return nil
         }
     }
 }

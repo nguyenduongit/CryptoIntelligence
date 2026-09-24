@@ -1,5 +1,16 @@
 import Foundation
 
+public enum OnChainError: LocalizedError, Sendable {
+    case dataUnavailable(String)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .dataUnavailable(let symbol):
+            return "Chưa có dữ liệu phân tích On-Chain & Dòng tiền ETF được kiểm chứng cho \(symbol) (Data Unavailable)."
+        }
+    }
+}
+
 public actor OnChainDataProvider {
     public static let shared = OnChainDataProvider()
     
@@ -14,15 +25,18 @@ public actor OnChainDataProvider {
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
         
         // Fetch current price for accurate USD calculations
-        var currentPrice: Double = 1.0
-        if let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol) {
-            currentPrice = price
+        guard let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
+            throw OnChainError.dataUnavailable(cleanSymbol)
         }
         
-        return buildOnChainProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: currentPrice)
+        guard let profile = buildOnChainProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price) else {
+            throw OnChainError.dataUnavailable(cleanSymbol)
+        }
+        
+        return profile
     }
     
-    private func buildOnChainProfile(baseAsset: String, symbol: String, currentPrice: Double) -> OnChainProfile {
+    private func buildOnChainProfile(baseAsset: String, symbol: String, currentPrice: Double) -> OnChainProfile? {
         let now = Date()
         
         switch baseAsset {
@@ -697,112 +711,7 @@ public actor OnChainDataProvider {
             )
             
         default:
-            // Fallback Dynamic On-Chain Estimator
-            let estInflow = 12_000_000.0
-            let estOutflow = 14_500_000.0
-            let estNet = estInflow - estOutflow
-            
-            let cycleMetrics = MVRVCycleMetrics(
-                mvrvZScore: 1.45,
-                realizedPriceUSD: max(0.50, currentPrice * 0.65),
-                currentPriceUSD: currentPrice,
-                nupl: 0.35,
-                puellMultiple: 1.0,
-                piCycle111DMA: currentPrice * 0.95,
-                piCycle2x350DMA: currentPrice * 1.50,
-                cyclePhase: "Vùng cân bằng định giá (Equilibrium Phase)",
-                cycleRiskScore: 0.38
-            )
-            
-            let lthSupply = LTHSupplyMetrics(
-                longTermHolderSupply: 620_000_000,
-                shortTermHolderSupply: 280_000_000,
-                exchangeReserveSupply: 100_000_000,
-                totalSupply: 1_000_000_000,
-                lth30dNetChangeToken: 5_200_000,
-                sthRealizedPriceUSD: currentPrice * 0.92
-            )
-            
-            let entityHoldings: [EntityWhaleHolding] = [
-                EntityWhaleHolding(
-                    entityName: "\(baseAsset) Foundation Treasury",
-                    category: .founder,
-                    holdingsToken: 120_000_000,
-                    holdingsUSD: 120_000_000 * currentPrice,
-                    avgPurchasePriceUSD: currentPrice * 0.2,
-                    unrealizedPnLUSD: 120_000_000 * (currentPrice * 0.8),
-                    change30dToken: 0,
-                    addressSnippet: "0x77ab12...39fc11",
-                    riskSignal: "Ví kho bạc phát triển hệ sinh thái và tài trợ cộng đồng"
-                ),
-                EntityWhaleHolding(
-                    entityName: "Market Maker Liquidity Pool",
-                    category: .marketMaker,
-                    holdingsToken: 45_000_000,
-                    holdingsUSD: 45_000_000 * currentPrice,
-                    avgPurchasePriceUSD: currentPrice * 0.95,
-                    unrealizedPnLUSD: 45_000_000 * (currentPrice * 0.05),
-                    change30dToken: 1_200_000,
-                    addressSnippet: "0x89cd44...12fe90",
-                    riskSignal: "Tạo lập thanh khoản thị trường giao ngay và phái sinh"
-                )
-            ]
-            
-            return OnChainProfile(
-                symbol: symbol,
-                baseAsset: baseAsset,
-                networkName: "\(baseAsset) Network Protocol",
-                exchangeFlow: ExchangeFlowMetrics(
-                    netFlow24hUSD: estNet,
-                    inflow24hUSD: estInflow,
-                    outflow24hUSD: estOutflow,
-                    exchangeReserveTotal: 45_000_000,
-                    exchangeReserveChange7dPercent: -0.65
-                ),
-                networkActivity: NetworkActivityMetrics(
-                    dailyActiveAddresses: 48_500,
-                    daaChange7dPercent: 3.5,
-                    dailyTransactionsCount: 185_000,
-                    averageGasFeeUSD: 0.15,
-                    totalValueLockedUSD: 120_000_000,
-                    nvtRatio: 32.0
-                ),
-                holderConcentration: HolderConcentrationMetrics(
-                    top10HoldersPercent: 34.5,
-                    top50HoldersPercent: 52.1,
-                    top100HoldersPercent: 62.8,
-                    retailHoldersPercent: 37.2,
-                    totalHoldersCount: 450_000,
-                    holdersGrowth30d: 4.1
-                ),
-                recentWhaleTransactions: [
-                    WhaleTransaction(
-                        id: "0x44a1...99bc",
-                        timestamp: now.addingTimeInterval(-3600),
-                        amountToken: 500_000,
-                        amountUSD: 500_000 * currentPrice,
-                        fromLabel: "Ví Sàn Binance",
-                        toLabel: "Ví Cá Voi Tích Lũy",
-                        type: .exchangeOutflow
-                    ),
-                    WhaleTransaction(
-                        id: "0x88cd...12ef",
-                        timestamp: now.addingTimeInterval(-7200),
-                        amountToken: 350_000,
-                        amountUSD: 350_000 * currentPrice,
-                        fromLabel: "Ví Cá Voi 0x5a...77",
-                        toLabel: "Ví Nạp Sàn CEX",
-                        type: .exchangeInflow
-                    )
-                ],
-                onChainHealthScore: 75,
-                onChainHealthLabel: "Hoạt Động Ổn Định (Stable Activity)",
-                onChainSummary: "Mạng lưới duy trì nhịp độ giao dịch và số lượng ví hoạt động ổn định. Dòng tiền ròng trên sàn ghi nhận xu hướng rút nhẹ (-0.65% trong 7 ngày), phản ánh tâm lý nắm giữ trung hạn.",
-                cycleMetrics: cycleMetrics,
-                lthSupply: lthSupply,
-                spotETFFlows: nil,
-                entityHoldings: entityHoldings
-            )
+            return nil
         }
     }
 }

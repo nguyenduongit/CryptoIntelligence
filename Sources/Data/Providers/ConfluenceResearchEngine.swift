@@ -60,15 +60,30 @@ public actor ConfluenceResearchEngine {
         
         // 6. Synthesize 5 Pillar Scores
         let technicalScore = evaluateTechnicalPillar(symbol: cleanSymbol, currentPrice: currentPrice, change24h: change24h, candles: candles)
-        let onChainScore = evaluateOnChainPillar(profile: onChainProfile)
-        let tokenomicsScore = evaluateTokenomicsPillar(profile: tokenomicsProfile)
+        let (onChainScore, hasOnChain) = evaluateOnChainPillar(profile: onChainProfile, baseAsset: baseAsset)
+        let (tokenomicsScore, hasTokenomics) = evaluateTokenomicsPillar(profile: tokenomicsProfile, baseAsset: baseAsset)
         let macroScore = evaluateMacroPillar(macro: macroData)
-        let smartMoneyScore = evaluateSmartMoneyPillar(profile: smartMoneyProfile)
+        let (smartMoneyScore, hasSmartMoney) = evaluateSmartMoneyPillar(profile: smartMoneyProfile, baseAsset: baseAsset)
         
         let pillars = [technicalScore, onChainScore, tokenomicsScore, macroScore, smartMoneyScore]
         
-        // Overall Weighted Confluence Score (0 - 100)
-        let rawOverall = pillars.reduce(0.0) { $0 + $1.weightedContribution }
+        // Overall Weighted Confluence Score (0 - 100) normalized across pillars with available data
+        let evaluatedPillars: [(PillarScoreItem, Bool)] = [
+            (technicalScore, candles.count >= 20),
+            (onChainScore, hasOnChain),
+            (tokenomicsScore, hasTokenomics),
+            (macroScore, true),
+            (smartMoneyScore, hasSmartMoney)
+        ]
+        
+        let availableWeight = evaluatedPillars.filter { $0.1 }.reduce(0.0) { $0 + $1.0.pillar.weight }
+        let rawOverall: Double
+        if availableWeight > 0 {
+            let weightedSum = evaluatedPillars.filter { $0.1 }.reduce(0.0) { $0 + $1.0.weightedContribution }
+            rawOverall = weightedSum / availableWeight
+        } else {
+            rawOverall = 50.0
+        }
         let overallScore = Int(round(rawOverall))
         
         // Recommendation
@@ -199,13 +214,16 @@ public actor ConfluenceResearchEngine {
         )
     }
     
-    private func evaluateOnChainPillar(profile: OnChainProfile?) -> PillarScoreItem {
+    private func evaluateOnChainPillar(profile: OnChainProfile?, baseAsset: String) -> (PillarScoreItem, Bool) {
         guard let p = profile else {
-            return PillarScoreItem(
-                pillar: .onchainETF,
-                score: 75,
-                signal: .bullish,
-                summary: "Dòng vốn ròng tích cực, dự trữ coin trên các sàn CEX duy trì xu hướng rút ròng nhẹ."
+            return (
+                PillarScoreItem(
+                    pillar: .onchainETF,
+                    score: 50,
+                    signal: .neutral,
+                    summary: "Chưa có hồ sơ On-Chain & Dòng vốn ETF được kiểm chứng cho \(baseAsset)."
+                ),
+                false
             )
         }
         
@@ -234,16 +252,19 @@ public actor ConfluenceResearchEngine {
             summary += " Dòng tiền ròng US Spot ETF mua ròng mạnh (+\(Formatters.formatVolume(etf.totalNetFlow24hUSD)) USD)."
         }
         
-        return PillarScoreItem(pillar: .onchainETF, score: score, signal: signal, summary: summary)
+        return (PillarScoreItem(pillar: .onchainETF, score: score, signal: signal, summary: summary), true)
     }
     
-    private func evaluateTokenomicsPillar(profile: TokenomicsProfile?) -> PillarScoreItem {
+    private func evaluateTokenomicsPillar(profile: TokenomicsProfile?, baseAsset: String) -> (PillarScoreItem, Bool) {
         guard let p = profile else {
-            return PillarScoreItem(
-                pillar: .tokenomics,
-                score: 76,
-                signal: .bullish,
-                summary: "Cơ cấu phân bổ token ổn định, áp lực lạm phát ở mức kiểm soát được."
+            return (
+                PillarScoreItem(
+                    pillar: .tokenomics,
+                    score: 50,
+                    signal: .neutral,
+                    summary: "Chưa có hồ sơ Tokenomics & Lịch mở khóa (Unlocks) chính thức cho \(baseAsset)."
+                ),
+                false
             )
         }
         
@@ -271,7 +292,7 @@ public actor ConfluenceResearchEngine {
         else { signal = .bearish }
         
         let summary = "Tỷ lệ lưu thông/FDV đạt \(String(format: "%.1f%%", ratio * 100.0)), lạm phát hàng năm \(String(format: "%.1f%%", inflation))."
-        return PillarScoreItem(pillar: .tokenomics, score: score, signal: signal, summary: summary)
+        return (PillarScoreItem(pillar: .tokenomics, score: score, signal: signal, summary: summary), true)
     }
     
     private func evaluateMacroPillar(macro: GlobalMacroOverviewData) -> PillarScoreItem {
@@ -286,13 +307,16 @@ public actor ConfluenceResearchEngine {
         return PillarScoreItem(pillar: .macro, score: score, signal: signal, summary: summary)
     }
     
-    private func evaluateSmartMoneyPillar(profile: SmartMoneyProfile?) -> PillarScoreItem {
+    private func evaluateSmartMoneyPillar(profile: SmartMoneyProfile?, baseAsset: String) -> (PillarScoreItem, Bool) {
         guard let p = profile else {
-            return PillarScoreItem(
-                pillar: .smartMoney,
-                score: 75,
-                signal: .bullish,
-                summary: "Các ví cá voi duy trì vị thế nắm giữ, không ghi nhận áp lực xả đột biến."
+            return (
+                PillarScoreItem(
+                    pillar: .smartMoney,
+                    score: 50,
+                    signal: .neutral,
+                    summary: "Chưa có luồng dữ liệu ví Smart Money & Quỹ kiểm chứng cho \(baseAsset)."
+                ),
+                false
             )
         }
         
@@ -303,7 +327,7 @@ public actor ConfluenceResearchEngine {
         else if score >= 50 { signal = .neutral }
         else { signal = .bearish }
         
-        return PillarScoreItem(pillar: .smartMoney, score: score, signal: signal, summary: p.sentimentSignal.analysisSummary)
+        return (PillarScoreItem(pillar: .smartMoney, score: score, signal: signal, summary: p.sentimentSignal.analysisSummary), true)
     }
     
     // MARK: - Recommendation & Scenarios
@@ -345,9 +369,23 @@ public actor ConfluenceResearchEngine {
             bullProb = 55
             baseProb = 30
             bearProb = 15
+        } else if baseAsset == "BNB" {
+            bullMultiplier = 1.90
+            baseMultiplier = 1.35
+            bearMultiplier = 0.75
+            bullProb = 50
+            baseProb = 35
+            bearProb = 15
+        } else if baseAsset == "SUI" {
+            bullMultiplier = 3.20
+            baseMultiplier = 1.80
+            bearMultiplier = 0.50
+            bullProb = 50
+            baseProb = 30
+            bearProb = 20
         } else {
-            bullMultiplier = 2.80
-            baseMultiplier = 1.50
+            bullMultiplier = 2.50
+            baseMultiplier = 1.45
             bearMultiplier = 0.55
             bullProb = 45
             baseProb = 35
@@ -369,9 +407,9 @@ public actor ConfluenceResearchEngine {
                 expectedReturnPercent: bullReturn,
                 probabilityPercent: bullProb,
                 keyDrivers: [
-                    "Dòng vốn US Spot ETF duy trì mua ròng mạnh mẽ",
-                    "Thanh khoản M2 toàn cầu tăng tốc sau các đợt hạ lãi suất",
-                    "Nguồn cung trên sàn cạn kiệt kích hoạt Supply Squeeze"
+                    "Dòng vốn US Spot ETF & dòng tiền lớn tiếp tục mua ròng",
+                    "Thanh khoản M2 toàn cầu tăng tốc sau các đợt nới lỏng tiền tệ",
+                    "Nguồn cung trên sàn duy trì rút ròng tạo Supply Squeeze"
                 ]
             ),
             ScenarioProjection(
@@ -391,7 +429,7 @@ public actor ConfluenceResearchEngine {
                 expectedReturnPercent: bearReturn,
                 probabilityPercent: bearProb,
                 keyDrivers: [
-                    "Lạm phát Mỹ quay trở lại khiến Fed trì hoãn nới lỏng",
+                    "Lạm phát Mỹ quay trở lại khiến ngân hàng trung ương trì hoãn nới lỏng",
                     "Áp lực bán tháo bất ngờ từ các vụ kiện tư pháp / ủy thác",
                     "Thủng mốc hỗ trợ chi phí vốn STH Realized Price"
                 ]
@@ -413,7 +451,7 @@ public actor ConfluenceResearchEngine {
         let allocation: Double
         if baseAsset == "BTC" {
             allocation = 30.0
-        } else if baseAsset == "ETH" || baseAsset == "SOL" {
+        } else if baseAsset == "ETH" || baseAsset == "SOL" || baseAsset == "BNB" {
             allocation = 15.0
         } else {
             allocation = 5.0
@@ -472,6 +510,90 @@ public actor ConfluenceResearchEngine {
                 "Rủi ro tắc nghẽn mạng cục bộ trong các giai đoạn khối lượng giao dịch đột biến"
             ]
             thesis = "Solana thể hiện hiệu suất vượt trội nhờ tốc độ tăng trưởng người dùng thực và thông lượng giao dịch. Tín hiệu hợp lưu đạt \(score)/100, khuyến nghị tích lũy theo từng nhịp điều chỉnh."
+            
+        case "BNB":
+            catalysts = [
+                "Cơ chế Auto-Burn hàng quý và BNB Launchpool tạo lực cầu giữ coin liên tục",
+                "Hoạt động mạng lưới BNB Chain và opBNB L2 duy trì lượng giao dịch DeFi ổn định",
+                "Môi trường pháp lý đã được giải tỏa hoàn toàn sau thỏa thuận dàn xếp DOJ"
+            ]
+            risks = [
+                "Độ phụ thuộc lớn vào danh tiếng và khối lượng giao dịch của sàn Binance",
+                "Mức độ phi tập trung của nhóm validator thấp hơn so với Ethereum"
+            ]
+            thesis = "BNB là tài sản blue-chip utility vững chắc với lực đốt cung đều đặn và dòng tiền thưởng từ Launchpool. Khuyến nghị phân bổ an toàn với điểm số \(score)/100."
+            
+        case "SUI":
+            catalysts = [
+                "Kiến trúc hướng đối tượng Sui Move đem lại thông lượng 297k TPS và độ trễ dưới 400ms",
+                "Tốc độ tăng trưởng TVL DeFi và khối lượng DEX thuộc top nhanh nhất thị trường",
+                "Hệ sinh thái Gaming và Web3 Mobile đón nhận nhiều nhà phát triển lớn"
+            ]
+            risks = [
+                "Lịch mở khóa token định kỳ cho nhà đầu tư sớm trong các năm đầu Mainnet",
+                "Cạnh tranh trực tiếp từ các chuỗi monolithic thế hệ mới như Aptos, Monad"
+            ]
+            thesis = "Sui đại diện cho công nghệ L1 thế hệ mới với trải nghiệm người dùng tối ưu. Điểm số hợp lưu đạt \(score)/100, khuyến nghị tích lũy từng phần có chọn lọc theo nhịp điều chỉnh."
+            
+        case "ARB":
+            catalysts = [
+                "Arbitrum One chiếm thị phần TVL Layer 2 lớn nhất hệ sinh thái Ethereum",
+                "Cơ chế BOLD Dispute Resolution và mở rộng Arbitrum Orbit L3 thu hút dự án mới",
+                "Phí giao dịch cực thấp sau nâng cấp Dencun (EIP-4844 Blob transactions)"
+            ]
+            risks = [
+                "Áp lực phân bổ token mở khóa hàng tháng cho team và nhà đầu tư",
+                "Sự vươn lên mạnh mẽ của Base (Coinbase L2) chia sẻ thị phần thanh khoản người dùng"
+            ]
+            thesis = "Arbitrum là đầu tàu hạ tầng Layer 2 của Ethereum với hệ sinh thái DeFi sôi động nhất. Khuyến nghị theo dõi điểm vào giá hợp lý."
+            
+        case "OP":
+            catalysts = [
+                "Khung OP Stack được lựa chọn bởi Base, Zora, Worldcoin tạo mạng lưới Superchain mạnh mẽ",
+                "Cơ chế chia sẻ doanh thu từ Superchain đóng góp đều đặn cho Optimism Collective",
+                "Triển khai hoàn thiện hệ thống Fault Proofs đa máy ảo an toàn"
+            ]
+            risks = [
+                "Áp lực lạm phát mở khóa token và sự phân mảnh thanh khoản giữa các chain trong Superchain",
+                "Cạnh tranh trực tiếp với Arbitrum Orbit và zkSync Hyperchains"
+            ]
+            thesis = "Optimism sở hữu mạng lưới liên minh Superchain hùng mạnh nhất Web3. Điểm số \(score)/100, phù hợp cho danh mục đầu tư đón sóng Layer 2."
+            
+        case "LINK":
+            catalysts = [
+                "Vị thế độc tôn về mạng lưới Oracle phi tập trung kết nối dữ liệu ngoài chuỗi vào Smart Contract",
+                "Giao thức Chainlink CCIP trở thành tiêu chuẩn liên chuỗi cho các tổ chức tài chính lớn (Swift, DTCC)",
+                "Chương trình Chainlink Staking v0.2 hấp thụ nguồn cung LINK lưu thông"
+            ]
+            risks = [
+                "Tốc độ tăng trưởng doanh thu on-chain chưa bắt kịp định giá vốn hóa thị trường",
+                "Cạnh tranh từ các giải pháp oracle chi phí thấp như Pyth Network"
+            ]
+            thesis = "Chainlink là tài sản cơ sở hạ tầng thiết yếu không thể thay thế trong toàn bộ hệ sinh thái Web3 và RWA. Khuyến nghị tích lũy dài hạn."
+            
+        case "AVAX":
+            catalysts = [
+                "Kiến trúc Subnet tùy biến mở đường cho việc áp dụng tài sản thực (RWA) và ngân hàng số",
+                "Thời gian hoàn tất giao dịch dưới 1 giây (sub-second finality) nhờ thuật toán Snowman",
+                "Hệ sinh thái game Web3 chuyển dịch mạnh mẽ sang Avalanche Subnets"
+            ]
+            risks = [
+                "Lượng giao dịch trên chuỗi C-Chain chính có dấu hiệu chững lại so với các chuỗi mới",
+                "Chi phí duy trì validator và tính phân mảnh thanh khoản giữa các Subnet"
+            ]
+            thesis = "Avalanche có nền tảng công nghệ đồng thuận xuất sắc và hướng đi rõ ràng vào khối doanh nghiệp/RWA. Khuyến nghị phân bổ tỷ trọng vừa phải."
+            
+        case "DOGE":
+            catalysts = [
+                "Đồng coin PoW mang tính biểu tượng văn hóa toàn cầu với cộng đồng trung thành",
+                "Khả năng tích hợp thanh toán vi mô trên các nền tảng mạng xã hội và thương mại",
+                "Được bảo mật an toàn qua cơ chế đào gộp AuxPoW với Litecoin"
+            ]
+            risks = [
+                "Lạm phát cố định 5 tỷ DOGE mỗi năm không có giới hạn cung tối đa",
+                "Không có hệ sinh thái smart contract bản địa, phụ thuộc nhiều vào tâm lý thị trường"
+            ]
+            thesis = "Dogecoin là đại diện meme/thanh toán hàng đầu với tính thanh khoản cao, phù hợp cho các chiến lược giao dịch theo sóng tâm lý thị trường."
             
         default:
             catalysts = [

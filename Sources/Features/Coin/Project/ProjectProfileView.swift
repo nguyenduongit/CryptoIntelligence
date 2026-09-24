@@ -70,21 +70,14 @@ public struct ProjectProfileView: View {
                         links: profile.officialLinks,
                         partners: profile.partners
                     )
-                } else if let err = viewModel.errorMessage {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(AppTheme.warningYellow)
-                        Text(err)
-                            .font(.system(size: 13))
-                            .foregroundColor(.white)
-                        Button("Thử lại") {
+                } else if !viewModel.isLoading {
+                    DataUnavailableView(
+                        symbol: symbol,
+                        moduleName: "Hồ Sơ Dự Án & Nền Tảng Kỹ Thuật",
+                        retryAction: {
                             viewModel.loadData()
                         }
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(AppTheme.accentBlue)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 250)
+                    )
                 }
             }
             .padding(14)

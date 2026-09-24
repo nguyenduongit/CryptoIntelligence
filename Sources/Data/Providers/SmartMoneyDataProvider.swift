@@ -1,5 +1,16 @@
 import Foundation
 
+public enum SmartMoneyError: LocalizedError, Sendable {
+    case dataUnavailable(String)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .dataUnavailable(let symbol):
+            return "Chưa có dữ liệu theo dõi Smart Money & DEX Swaps được kiểm chứng cho \(symbol) (Data Unavailable)."
+        }
+    }
+}
+
 public actor SmartMoneyDataProvider {
     public static let shared = SmartMoneyDataProvider()
     
@@ -14,15 +25,18 @@ public actor SmartMoneyDataProvider {
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
         
         // Fetch current price for accurate USD calculations
-        var currentPrice: Double = 1.0
-        if let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol) {
-            currentPrice = price
+        guard let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
+            throw SmartMoneyError.dataUnavailable(cleanSymbol)
         }
         
-        return buildSmartMoneyProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: currentPrice)
+        guard let profile = buildSmartMoneyProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price) else {
+            throw SmartMoneyError.dataUnavailable(cleanSymbol)
+        }
+        
+        return profile
     }
     
-    private func buildSmartMoneyProfile(baseAsset: String, symbol: String, currentPrice: Double) -> SmartMoneyProfile {
+    private func buildSmartMoneyProfile(baseAsset: String, symbol: String, currentPrice: Double) -> SmartMoneyProfile? {
         let now = Date()
         let topWallets = buildTopWallets(baseAsset: baseAsset, currentPrice: currentPrice)
         let freshWallets = buildFreshWallets(baseAsset: baseAsset, currentPrice: currentPrice)
@@ -231,43 +245,7 @@ public actor SmartMoneyDataProvider {
             )
             
         default:
-            return SmartMoneyProfile(
-                symbol: symbol,
-                baseAsset: baseAsset,
-                sentimentSignal: SmartMoneySentimentSignal(
-                    score: 72,
-                    signalLabel: "Theo Dõi Dòng Tiền Tích Lũy (Neutral to Bullish)",
-                    netDEXVolume24hUSD: 8_500_000,
-                    smartMoneyHoldersCount: 240,
-                    smartHoldersChange7d: 12,
-                    analysisSummary: "Dự án duy trì sự quan tâm ổn định từ các quỹ đầu tư hệ sinh thái và nhà tạo lập thị trường. Tỷ lệ mua/bán trên DEX ở mức cân bằng tích cực."
-                ),
-                vcBackers: [
-                    VCBackerHolding(fundName: "Ecosystem Venture Fund", fundTier: "Tier 2 VC", isLeadInvestor: true, investmentRound: "Seed Round ($0.08)", estimatedHoldingUSD: 25_000_000, roiMultiplier: 2.8, status: .holding),
-                    VCBackerHolding(fundName: "Strategic Partners VC", fundTier: "Strategic VC", isLeadInvestor: false, investmentRound: "Private Strategic Round", estimatedHoldingUSD: 14_000_000, roiMultiplier: 1.9, status: .holding)
-                ],
-                dexLiquidity: DEXLiquidityMetrics(
-                    totalLiquidityUSD: 45_000_000,
-                    liquidity24hChangePercent: 1.2,
-                    volume24hDEXUSD: 18_000_000,
-                    topPoolPair: "\(baseAsset) / USDT (Uniswap / DEX)",
-                    volumeToLiquidityRatio: 0.40
-                ),
-                recentDEXSwaps: [
-                    SmartMoneyDEXSwap(
-                        id: "0x55d1...22ea",
-                        timestamp: now.addingTimeInterval(-2100),
-                        traderLabel: "Smart Trader #19",
-                        type: .buy,
-                        dexName: "DEX AMM",
-                        amountToken: 45_000.0,
-                        amountUSD: 45_000.0 * currentPrice,
-                        executionPriceUSD: currentPrice
-                    )
-                ],
-                topWallets: topWallets,
-                freshWallets: freshWallets
-            )
+            return nil
         }
     }
     

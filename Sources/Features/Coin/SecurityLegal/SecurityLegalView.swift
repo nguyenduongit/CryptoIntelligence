@@ -62,21 +62,14 @@ public struct SecurityLegalView: View {
                     
                     // 6. Bug Bounty & Exploit History
                     BugBountyInsuranceCardView(bugBounty: profile.bugBounty)
-                } else if let err = viewModel.errorMessage {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(AppTheme.warningYellow)
-                        Text(err)
-                            .font(.system(size: 13))
-                            .foregroundColor(.white)
-                        Button("Thử lại") {
+                } else if !viewModel.isLoading {
+                    DataUnavailableView(
+                        symbol: symbol,
+                        moduleName: "Bảo Mật Smart Contract & Tuân Thủ Pháp Lý",
+                        retryAction: {
                             viewModel.loadData()
                         }
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(AppTheme.accentBlue)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 250)
+                    )
                 }
             }
             .padding(14)

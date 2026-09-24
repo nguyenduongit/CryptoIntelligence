@@ -1,9 +1,26 @@
 import Foundation
 
+public enum DerivativesError: LocalizedError, Sendable {
+    case dataUnavailable(String)
+    case tickerUnavailable(String)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .dataUnavailable(let symbol):
+            return "Dữ liệu phái sinh, funding rate và bản đồ thanh lý cho \(symbol) hiện chưa có trong cơ sở dữ liệu."
+        case .tickerUnavailable(let symbol):
+            return "Không thể lấy giá trực tiếp từ Binance cho cặp \(symbol) để tính toán phái sinh."
+        }
+    }
+}
+
 public actor DerivativesDataProvider {
     public static let shared = DerivativesDataProvider()
     
     private let candleProvider: BinanceCandleProvider
+    private let supportedDerivativesAssets: Set<String> = [
+        "BTC", "ETH", "SOL", "BNB", "SUI", "ARB", "OP", "LINK", "AVAX", "DOGE"
+    ]
     
     public init(candleProvider: BinanceCandleProvider = .shared) {
         self.candleProvider = candleProvider
@@ -13,12 +30,15 @@ public actor DerivativesDataProvider {
         let cleanSymbol = symbol.uppercased()
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
         
-        var currentPrice: Double = 1.0
-        if let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol) {
-            currentPrice = price
+        guard supportedDerivativesAssets.contains(baseAsset) else {
+            throw DerivativesError.dataUnavailable(cleanSymbol)
         }
         
-        return buildDerivativesProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: currentPrice)
+        guard let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
+            throw DerivativesError.tickerUnavailable(cleanSymbol)
+        }
+        
+        return buildDerivativesProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price)
     }
     
     private func buildDerivativesProfile(baseAsset: String, symbol: String, currentPrice: Double) -> DerivativesProfile {
@@ -37,12 +57,18 @@ public actor DerivativesDataProvider {
         
         // 2. Multi-Exchange Funding Rates
         let baseFundingRate: Double
-        if baseAsset == "BTC" {
-            baseFundingRate = 0.0115
-        } else if baseAsset == "SOL" {
-            baseFundingRate = 0.0185
-        } else {
-            baseFundingRate = 0.0100
+        switch baseAsset {
+        case "BTC": baseFundingRate = 0.0115
+        case "ETH": baseFundingRate = 0.0105
+        case "SOL": baseFundingRate = 0.0185
+        case "BNB": baseFundingRate = 0.0095
+        case "SUI": baseFundingRate = 0.0160
+        case "ARB": baseFundingRate = 0.0080
+        case "OP":  baseFundingRate = 0.0090
+        case "LINK": baseFundingRate = 0.0110
+        case "AVAX": baseFundingRate = 0.0125
+        case "DOGE": baseFundingRate = 0.0150
+        default:    baseFundingRate = 0.0100
         }
         
         let fundingRates: [FundingRateItem] = [
@@ -78,13 +104,13 @@ public actor DerivativesDataProvider {
         
         // 3. Historical Funding Rates (Last 8 intervals of 8h)
         let fundingHistory: [FundingRateHistoryPoint] = [
-            FundingRateHistoryPoint(dateLabel: "18/09 00h", rate8hPercent: 0.0085, priceUSD: currentPrice * 0.98),
-            FundingRateHistoryPoint(dateLabel: "18/09 08h", rate8hPercent: 0.0102, priceUSD: currentPrice * 0.985),
-            FundingRateHistoryPoint(dateLabel: "18/09 16h", rate8hPercent: 0.0120, priceUSD: currentPrice * 0.99),
-            FundingRateHistoryPoint(dateLabel: "19/09 00h", rate8hPercent: 0.0115, priceUSD: currentPrice * 0.995),
-            FundingRateHistoryPoint(dateLabel: "19/09 08h", rate8hPercent: 0.0145, priceUSD: currentPrice * 1.005),
-            FundingRateHistoryPoint(dateLabel: "19/09 16h", rate8hPercent: 0.0130, priceUSD: currentPrice * 1.01),
-            FundingRateHistoryPoint(dateLabel: "20/09 00h", rate8hPercent: 0.0118, priceUSD: currentPrice * 0.998),
+            FundingRateHistoryPoint(dateLabel: "18/09 00h", rate8hPercent: max(0.005, baseFundingRate - 0.003), priceUSD: currentPrice * 0.98),
+            FundingRateHistoryPoint(dateLabel: "18/09 08h", rate8hPercent: max(0.006, baseFundingRate - 0.0015), priceUSD: currentPrice * 0.985),
+            FundingRateHistoryPoint(dateLabel: "18/09 16h", rate8hPercent: baseFundingRate + 0.0005, priceUSD: currentPrice * 0.99),
+            FundingRateHistoryPoint(dateLabel: "19/09 00h", rate8hPercent: baseFundingRate, priceUSD: currentPrice * 0.995),
+            FundingRateHistoryPoint(dateLabel: "19/09 08h", rate8hPercent: baseFundingRate + 0.003, priceUSD: currentPrice * 1.005),
+            FundingRateHistoryPoint(dateLabel: "19/09 16h", rate8hPercent: baseFundingRate + 0.0015, priceUSD: currentPrice * 1.01),
+            FundingRateHistoryPoint(dateLabel: "20/09 00h", rate8hPercent: baseFundingRate + 0.0003, priceUSD: currentPrice * 0.998),
             FundingRateHistoryPoint(dateLabel: "20/09 08h", rate8hPercent: baseFundingRate, priceUSD: currentPrice)
         ]
         
@@ -120,10 +146,19 @@ public actor DerivativesDataProvider {
         var clusters: [LiquidationCluster] = []
         
         let scale: Double
-        if baseAsset == "BTC" { scale = 1.0 }
-        else if baseAsset == "ETH" { scale = 0.35 }
-        else if baseAsset == "SOL" { scale = 0.12 }
-        else { scale = 0.02 }
+        switch baseAsset {
+        case "BTC": scale = 1.0
+        case "ETH": scale = 0.35
+        case "SOL": scale = 0.12
+        case "BNB": scale = 0.08
+        case "DOGE": scale = 0.06
+        case "SUI": scale = 0.05
+        case "LINK": scale = 0.04
+        case "AVAX": scale = 0.04
+        case "ARB": scale = 0.03
+        case "OP":  scale = 0.025
+        default:    scale = 0.02
+        }
         
         // Short Liquidations ABOVE Current Price (Squeeze Targets)
         let shortOffsets: [(percent: Double, tier: String, baseVol: Double, intensity: Double)] = [
@@ -207,9 +242,27 @@ public actor DerivativesDataProvider {
         case "SOL":
             let oiUSD = 2_450_000_000.0
             return (oiUSD, oiUSD / currentPrice, 3.48, 8.5)
+        case "BNB":
+            let oiUSD = 1_250_000_000.0
+            return (oiUSD, oiUSD / currentPrice, 1.45, 2.4)
+        case "DOGE":
+            let oiUSD = 1_100_000_000.0
+            return (oiUSD, oiUSD / currentPrice, 4.80, 7.2)
         case "SUI":
             let oiUSD = 480_000_000.0
             return (oiUSD, oiUSD / currentPrice, 6.20, 14.2)
+        case "LINK":
+            let oiUSD = 650_000_000.0
+            return (oiUSD, oiUSD / currentPrice, 5.10, 3.8)
+        case "AVAX":
+            let oiUSD = 380_000_000.0
+            return (oiUSD, oiUSD / currentPrice, 3.90, 4.1)
+        case "ARB":
+            let oiUSD = 420_000_000.0
+            return (oiUSD, oiUSD / currentPrice, 8.50, 5.6)
+        case "OP":
+            let oiUSD = 280_000_000.0
+            return (oiUSD, oiUSD / currentPrice, 7.20, 3.4)
         default:
             let oiUSD = 85_000_000.0
             return (oiUSD, oiUSD / currentPrice, 4.50, 2.1)
@@ -218,7 +271,13 @@ public actor DerivativesDataProvider {
     
     private func generateOrderbookWalls(currentPrice: Double, baseAsset: String) -> [OrderbookWallItem] {
         var walls: [OrderbookWallItem] = []
-        let scale: Double = baseAsset == "BTC" ? 1.0 : (baseAsset == "ETH" ? 0.3 : 0.08)
+        let scale: Double
+        switch baseAsset {
+        case "BTC": scale = 1.0
+        case "ETH": scale = 0.3
+        case "SOL": scale = 0.1
+        default:    scale = 0.05
+        }
         
         // Top 4 Bid Walls Below
         let bidDefs: [(dist: Double, volM: Double)] = [

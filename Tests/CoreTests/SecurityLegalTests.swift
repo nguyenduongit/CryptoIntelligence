@@ -100,4 +100,12 @@ struct SecurityLegalTests {
         #expect(scan.buyTaxPercent == 0.0)
         #expect(scan.isOpenSourceVerified == true)
     }
+    
+    @Test("Test SecurityLegalDataProvider throws dataUnavailable for unknown assets")
+    func testSecurityLegalDataProviderUnknownAsset() async {
+        let provider = SecurityLegalDataProvider()
+        await #expect(throws: SecurityLegalError.self) {
+            try await provider.fetchSecurityLegalProfile(for: "UNKNOWNCOINUSDT")
+        }
+    }
 }

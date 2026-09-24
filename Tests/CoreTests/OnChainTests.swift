@@ -87,4 +87,12 @@ struct OnChainTests {
         #expect(vm.filteredWhaleTransactions.count == 1)
         #expect(vm.filteredWhaleTransactions.first?.id == "tx3")
     }
+    
+    @Test("Test OnChainDataProvider throws dataUnavailable for unknown assets")
+    func testOnChainDataProviderUnknownAsset() async {
+        let provider = OnChainDataProvider()
+        await #expect(throws: OnChainError.self) {
+            try await provider.fetchOnChainProfile(for: "UNKNOWNCOINUSDT")
+        }
+    }
 }

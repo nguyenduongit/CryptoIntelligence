@@ -118,4 +118,12 @@ struct DerivativesAdvancedTests {
         #expect(profile.openInterest.totalOpenInterestUSD > 0)
         #expect(!profile.orderbookWalls.isEmpty)
     }
+    
+    @Test("Test DerivativesDataProvider throws dataUnavailable for unknown assets")
+    func testDerivativesDataProviderUnknownAsset() async {
+        let provider = DerivativesDataProvider.shared
+        await #expect(throws: DerivativesError.self) {
+            try await provider.fetchDerivativesProfile(for: "UNKNOWNCOINUSDT")
+        }
+    }
 }
