@@ -686,6 +686,41 @@ public actor TokenomicsDataProvider {
         }
     }
     
+    private func makeVestingPoint(
+        year: String,
+        circulating: Double,
+        teamRatio: Double = 0.40,
+        investorRatio: Double = 0.30,
+        treasuryRatio: Double = 0.30
+    ) -> VestingSchedulePoint {
+        let clampedCirc = max(0.0, min(100.0, circulating))
+        let rem = max(0.0, 100.0 - clampedCirc)
+        if rem <= 0.001 {
+            return VestingSchedulePoint(
+                yearLabel: year,
+                circulatingPercent: 100.0,
+                teamLockedPercent: 0,
+                investorsLockedPercent: 0,
+                treasuryLockedPercent: 0
+            )
+        }
+        let totalRatio = teamRatio + investorRatio + treasuryRatio
+        let normTeam = totalRatio > 0 ? teamRatio / totalRatio : 0.4
+        let normInv = totalRatio > 0 ? investorRatio / totalRatio : 0.3
+        
+        let team = rem * normTeam
+        let inv = rem * normInv
+        let treasury = max(0.0, rem - team - inv)
+        
+        return VestingSchedulePoint(
+            yearLabel: year,
+            circulatingPercent: clampedCirc,
+            teamLockedPercent: team,
+            investorsLockedPercent: inv,
+            treasuryLockedPercent: treasury
+        )
+    }
+
     private func buildVestingSchedule(baseAsset: String, liveCirculatingPercent: Double? = nil) -> [VestingSchedulePoint]? {
         switch baseAsset {
         case "BTC":
@@ -696,7 +731,7 @@ public actor TokenomicsDataProvider {
                 VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 98.5, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 1.5),
                 VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0.0)
             ]
-        case "ETH":
+        case "ETH", "BNB", "DOGE", "NEAR", "ONE":
             return [
                 VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
                 VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
@@ -706,114 +741,85 @@ public actor TokenomicsDataProvider {
             ]
         case "SOL":
             let sol2026 = liveCirculatingPercent ?? 85.0
-            let solRem = max(0.0, 100.0 - sol2026)
             return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 78.0, teamLockedPercent: 6.0, investorsLockedPercent: 6.0, treasuryLockedPercent: 10.0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 82.0, teamLockedPercent: 4.0, investorsLockedPercent: 4.0, treasuryLockedPercent: 10.0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: sol2026, teamLockedPercent: solRem * 0.35, investorsLockedPercent: solRem * 0.25, treasuryLockedPercent: solRem * 0.40),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: min(100.0, sol2026 + solRem * 0.6), teamLockedPercent: solRem * 0.15, investorsLockedPercent: 0, treasuryLockedPercent: solRem * 0.25),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 0.0)
-            ]
-        case "BNB":
-            return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0)
-            ]
-        case "DOGE":
-            return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0)
-            ]
-        case "NEAR":
-            return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0)
+                makeVestingPoint(year: "2024", circulating: min(sol2026 * 0.75, 78.0), teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2025", circulating: min(sol2026 * 0.90, 82.0), teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2026", circulating: sol2026, teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2027", circulating: min(100.0, sol2026 + (100.0 - sol2026) * 0.6), teamRatio: 0.25, investorRatio: 0.15, treasuryRatio: 0.60),
+                makeVestingPoint(year: "2028", circulating: 100.0)
             ]
         case "PENDLE":
-            let pen2026 = liveCirculatingPercent ?? 98.0
+            let pen2026 = liveCirculatingPercent ?? 61.7
             return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 92.0, teamLockedPercent: 3.0, investorsLockedPercent: 2.0, treasuryLockedPercent: 3.0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 96.0, teamLockedPercent: 1.5, investorsLockedPercent: 1.0, treasuryLockedPercent: 1.5),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: pen2026, teamLockedPercent: max(0, (100.0 - pen2026) * 0.5), investorsLockedPercent: 0, treasuryLockedPercent: max(0, (100.0 - pen2026) * 0.5)),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0)
-            ]
-        case "ONE":
-            return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0)
+                makeVestingPoint(year: "2024", circulating: min(pen2026 * 0.70, 42.0), teamRatio: 0.40, investorRatio: 0.25, treasuryRatio: 0.35),
+                makeVestingPoint(year: "2025", circulating: min(pen2026 * 0.85, 52.0), teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2026", circulating: pen2026, teamRatio: 0.35, investorRatio: 0.20, treasuryRatio: 0.45),
+                makeVestingPoint(year: "2027", circulating: min(100.0, pen2026 + (100.0 - pen2026) * 0.55), teamRatio: 0.20, investorRatio: 0.10, treasuryRatio: 0.70),
+                makeVestingPoint(year: "2028", circulating: 100.0)
             ]
         case "CGPT":
             return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 55.0, teamLockedPercent: 15.0, investorsLockedPercent: 10.0, treasuryLockedPercent: 20.0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 85.0, teamLockedPercent: 5.0, investorsLockedPercent: 2.0, treasuryLockedPercent: 8.0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0, investorsLockedPercent: 0, treasuryLockedPercent: 0)
+                makeVestingPoint(year: "2024", circulating: 55.0, teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2025", circulating: 85.0, teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2026", circulating: 100.0),
+                makeVestingPoint(year: "2027", circulating: 100.0),
+                makeVestingPoint(year: "2028", circulating: 100.0)
             ]
         case "SUI":
             let sui2026 = liveCirculatingPercent ?? 41.0
-            let suiRem = max(0.0, 100.0 - sui2026)
             return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 27.6, teamLockedPercent: 20.0, investorsLockedPercent: 14.0, treasuryLockedPercent: 38.4),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 35.0, teamLockedPercent: 16.0, investorsLockedPercent: 12.0, treasuryLockedPercent: 37.0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: sui2026, teamLockedPercent: suiRem * 0.35, investorsLockedPercent: suiRem * 0.25, treasuryLockedPercent: suiRem * 0.40),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: min(100.0, sui2026 + suiRem * 0.5), teamLockedPercent: suiRem * 0.15, investorsLockedPercent: suiRem * 0.10, treasuryLockedPercent: suiRem * 0.25),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 96.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 4.0),
-                VestingSchedulePoint(yearLabel: "2029", circulatingPercent: 100.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 0.0)
+                makeVestingPoint(year: "2024", circulating: min(sui2026 * 0.65, 27.6), teamRatio: 0.30, investorRatio: 0.20, treasuryRatio: 0.50),
+                makeVestingPoint(year: "2025", circulating: min(sui2026 * 0.85, 35.0), teamRatio: 0.30, investorRatio: 0.20, treasuryRatio: 0.50),
+                makeVestingPoint(year: "2026", circulating: sui2026, teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2027", circulating: min(100.0, sui2026 + (100.0 - sui2026) * 0.5), teamRatio: 0.25, investorRatio: 0.15, treasuryRatio: 0.60),
+                makeVestingPoint(year: "2028", circulating: min(100.0, sui2026 + (100.0 - sui2026) * 0.85), teamRatio: 0.10, investorRatio: 0.05, treasuryRatio: 0.85),
+                makeVestingPoint(year: "2029", circulating: 100.0)
             ]
         case "ARB":
             let arb2026 = liveCirculatingPercent ?? 35.5
-            let arbRem = max(0.0, 100.0 - arb2026)
             return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 25.0, teamLockedPercent: 32.0, investorsLockedPercent: 20.0, treasuryLockedPercent: 23.0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 30.0, teamLockedPercent: 28.0, investorsLockedPercent: 18.0, treasuryLockedPercent: 24.0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: arb2026, teamLockedPercent: arbRem * 0.38, investorsLockedPercent: arbRem * 0.27, treasuryLockedPercent: arbRem * 0.35),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: min(100.0, arb2026 + arbRem * 0.5), teamLockedPercent: arbRem * 0.18, investorsLockedPercent: arbRem * 0.12, treasuryLockedPercent: arbRem * 0.20),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 0.0)
+                makeVestingPoint(year: "2024", circulating: min(arb2026 * 0.70, 25.0), teamRatio: 0.40, investorRatio: 0.25, treasuryRatio: 0.35),
+                makeVestingPoint(year: "2025", circulating: min(arb2026 * 0.85, 30.0), teamRatio: 0.40, investorRatio: 0.25, treasuryRatio: 0.35),
+                makeVestingPoint(year: "2026", circulating: arb2026, teamRatio: 0.38, investorRatio: 0.27, treasuryRatio: 0.35),
+                makeVestingPoint(year: "2027", circulating: min(100.0, arb2026 + (100.0 - arb2026) * 0.5), teamRatio: 0.25, investorRatio: 0.15, treasuryRatio: 0.60),
+                makeVestingPoint(year: "2028", circulating: 100.0)
             ]
         case "OP":
             let op2026 = liveCirculatingPercent ?? 32.0
-            let opRem = max(0.0, 100.0 - op2026)
             return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 22.0, teamLockedPercent: 28.0, investorsLockedPercent: 25.0, treasuryLockedPercent: 25.0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 28.0, teamLockedPercent: 24.0, investorsLockedPercent: 20.0, treasuryLockedPercent: 28.0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: op2026, teamLockedPercent: opRem * 0.35, investorsLockedPercent: opRem * 0.30, treasuryLockedPercent: opRem * 0.35),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: min(100.0, op2026 + opRem * 0.5), teamLockedPercent: opRem * 0.15, investorsLockedPercent: opRem * 0.10, treasuryLockedPercent: opRem * 0.25),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 0.0)
+                makeVestingPoint(year: "2024", circulating: min(op2026 * 0.70, 22.0), teamRatio: 0.35, investorRatio: 0.30, treasuryRatio: 0.35),
+                makeVestingPoint(year: "2025", circulating: min(op2026 * 0.85, 28.0), teamRatio: 0.35, investorRatio: 0.30, treasuryRatio: 0.35),
+                makeVestingPoint(year: "2026", circulating: op2026, teamRatio: 0.35, investorRatio: 0.30, treasuryRatio: 0.35),
+                makeVestingPoint(year: "2027", circulating: min(100.0, op2026 + (100.0 - op2026) * 0.5), teamRatio: 0.25, investorRatio: 0.15, treasuryRatio: 0.60),
+                makeVestingPoint(year: "2028", circulating: 100.0)
             ]
         case "AVAX":
             let avax2026 = liveCirculatingPercent ?? 58.0
-            let avaxRem = max(0.0, 100.0 - avax2026)
             return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 50.0, teamLockedPercent: 10.0, investorsLockedPercent: 5.0, treasuryLockedPercent: 35.0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 55.0, teamLockedPercent: 8.0, investorsLockedPercent: 3.0, treasuryLockedPercent: 34.0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: avax2026, teamLockedPercent: avaxRem * 0.20, investorsLockedPercent: 0.0, treasuryLockedPercent: avaxRem * 0.80),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: min(100.0, avax2026 + avaxRem * 0.5), teamLockedPercent: avaxRem * 0.08, investorsLockedPercent: 0.0, treasuryLockedPercent: avaxRem * 0.42),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0.0, investorsLockedPercent: 0.0, treasuryLockedPercent: 0.0)
+                makeVestingPoint(year: "2024", circulating: min(avax2026 * 0.75, 50.0), teamRatio: 0.20, investorRatio: 0.10, treasuryRatio: 0.70),
+                makeVestingPoint(year: "2025", circulating: min(avax2026 * 0.90, 55.0), teamRatio: 0.20, investorRatio: 0.10, treasuryRatio: 0.70),
+                makeVestingPoint(year: "2026", circulating: avax2026, teamRatio: 0.20, investorRatio: 0.0, treasuryRatio: 0.80),
+                makeVestingPoint(year: "2027", circulating: min(100.0, avax2026 + (100.0 - avax2026) * 0.5), teamRatio: 0.10, investorRatio: 0.0, treasuryRatio: 0.90),
+                makeVestingPoint(year: "2028", circulating: 100.0)
             ]
         case "LINK":
+            let link2026 = liveCirculatingPercent ?? 88.0
             return [
-                VestingSchedulePoint(yearLabel: "2024", circulatingPercent: 60.0, teamLockedPercent: 15.0, investorsLockedPercent: 0, treasuryLockedPercent: 25.0),
-                VestingSchedulePoint(yearLabel: "2025", circulatingPercent: 75.0, teamLockedPercent: 10.0, investorsLockedPercent: 0, treasuryLockedPercent: 15.0),
-                VestingSchedulePoint(yearLabel: "2026", circulatingPercent: 88.0, teamLockedPercent: 4.0, investorsLockedPercent: 0, treasuryLockedPercent: 8.0),
-                VestingSchedulePoint(yearLabel: "2027", circulatingPercent: 95.0, teamLockedPercent: 0.0, investorsLockedPercent: 0, treasuryLockedPercent: 5.0),
-                VestingSchedulePoint(yearLabel: "2028", circulatingPercent: 100.0, teamLockedPercent: 0.0, investorsLockedPercent: 0, treasuryLockedPercent: 0.0)
+                makeVestingPoint(year: "2024", circulating: min(link2026 * 0.70, 60.0), teamRatio: 0.30, investorRatio: 0.0, treasuryRatio: 0.70),
+                makeVestingPoint(year: "2025", circulating: min(link2026 * 0.85, 75.0), teamRatio: 0.30, investorRatio: 0.0, treasuryRatio: 0.70),
+                makeVestingPoint(year: "2026", circulating: link2026, teamRatio: 0.25, investorRatio: 0.0, treasuryRatio: 0.75),
+                makeVestingPoint(year: "2027", circulating: min(100.0, link2026 + (100.0 - link2026) * 0.6), teamRatio: 0.10, investorRatio: 0.0, treasuryRatio: 0.90),
+                makeVestingPoint(year: "2028", circulating: 100.0)
             ]
         default:
-            return nil
+            guard let cur = liveCirculatingPercent else { return nil }
+            return [
+                makeVestingPoint(year: "2024", circulating: min(cur * 0.70, 50.0), teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2025", circulating: min(cur * 0.85, 70.0), teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2026", circulating: cur, teamRatio: 0.35, investorRatio: 0.25, treasuryRatio: 0.40),
+                makeVestingPoint(year: "2027", circulating: min(100.0, cur + (100.0 - cur) * 0.5), teamRatio: 0.20, investorRatio: 0.10, treasuryRatio: 0.70),
+                makeVestingPoint(year: "2028", circulating: 100.0)
+            ]
         }
     }
     
