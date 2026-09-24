@@ -20,24 +20,11 @@ public struct MarketOverviewView: View {
             // 1. Top Sub-header & Filters Bar
             marketToolbar
             
-            // 2. Macro Metrics Bar (Volume, BTC.D, ETH.D, Fear & Greed)
+            // 2. Unified Macro & Derivatives Metrics Ribbon Bar
             MarketMacroMetricsBarView(
-                metrics: viewModel.globalMetrics,
-                isLoading: viewModel.isLoading,
-                onRefresh: { viewModel.loadData() }
+                globalMetrics: viewModel.globalMetrics,
+                derivativesMetrics: viewModel.derivativesMetrics
             )
-            
-            // 2.5 Derivatives & Funding Rates Bar
-            if let deriv = viewModel.derivativesMetrics {
-                DerivativesOverviewBarView(metrics: deriv)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 4)
-                    .background(AppTheme.darkHeaderBg.opacity(0.85))
-                    .overlay(
-                        Rectangle().fill(AppTheme.darkBorder).frame(height: 1),
-                        alignment: .bottom
-                    )
-            }
             
             // 3. Error Banner (if any)
             if let err = viewModel.errorMessage {
@@ -163,30 +150,34 @@ public struct MarketOverviewView: View {
                 )
             }
             
-            // Refresh Button
+            // Single Unified Refresh Button
             Button(action: { viewModel.loadData() }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10))
-                        .rotationEffect(.degrees(viewModel.isLoading ? 360 : 0))
-                        .animation(viewModel.isLoading ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: viewModel.isLoading)
+                HStack(spacing: 5) {
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
                     Text("Làm mới")
                         .font(.system(size: 11, weight: .medium))
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
                 .background(AppTheme.darkCard)
-                .foregroundColor(.white.opacity(0.8))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .foregroundColor(.white.opacity(0.85))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: 6)
                         .stroke(AppTheme.darkBorder, lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
+            .disabled(viewModel.isLoading)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.vertical, 7)
         .background(AppTheme.darkHeaderBg)
         .overlay(
             Rectangle()
