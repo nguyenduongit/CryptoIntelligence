@@ -87,7 +87,17 @@ struct TokenomicsTests {
     func testTokenomicsDataProviderUnknownAsset() async {
         let provider = TokenomicsDataProvider()
         await #expect(throws: TokenomicsError.self) {
-            try await provider.fetchTokenomics(for: "UNKNOWNCOINUSDT")
+            try await provider.fetchTokenomics(for: "UNKNOWNCOINXYZ999USDT")
         }
+    }
+    
+    @Test("Test TokenomicsDataProvider live fetch for NEARUSDT")
+    func testTokenomicsDataProviderLiveFetchNEAR() async throws {
+        let provider = TokenomicsDataProvider()
+        let near = try await provider.fetchTokenomics(for: "NEARUSDT")
+        #expect(near.baseAsset == "NEAR")
+        #expect(near.supplyMetrics.circulatingSupply > 1_000_000_000.0)
+        #expect(near.supplyMetrics.marketCapUSD > 1_000_000_000.0)
+        #expect(!near.allocations.isEmpty)
     }
 }
