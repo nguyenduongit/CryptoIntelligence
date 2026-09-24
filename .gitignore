@@ -1,0 +1,19 @@
+# Xcode / Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+
+# App Bundles / Binaries
+*.app/
+*.dSYM/
+
+# OS / Editor Files
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
