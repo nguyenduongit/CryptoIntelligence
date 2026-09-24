@@ -45,6 +45,8 @@ public final class ChartViewModel: @unchecked Sendable {
     private let candleProvider: BinanceCandleProvider
     private var loadTask: Task<Void, Never>?
     private var klineObserver: NSObjectProtocol?
+    private var activeSubscribedSymbol: String? = nil
+    private var activeSubscribedTimeframe: Timeframe? = nil
     
     public init(
         symbol: String,
@@ -64,6 +66,23 @@ public final class ChartViewModel: @unchecked Sendable {
         if let observer = klineObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let sym = activeSubscribedSymbol, let tf = activeSubscribedTimeframe {
+            Task.detached {
+                await BinanceWebSocketManager.shared.unsubscribeKline(symbol: sym, timeframe: tf)
+            }
+        }
+    }
+    
+    public func cleanup() {
+        loadTask?.cancel()
+        loadTask = nil
+        if let sym = activeSubscribedSymbol, let tf = activeSubscribedTimeframe {
+            activeSubscribedSymbol = nil
+            activeSubscribedTimeframe = nil
+            Task {
+                await BinanceWebSocketManager.shared.unsubscribeKline(symbol: sym, timeframe: tf)
+            }
+        }
     }
     
     private func setupKlineObserver() {
@@ -82,6 +101,7 @@ public final class ChartViewModel: @unchecked Sendable {
     
     public func setSymbol(_ newSymbol: String) {
         guard newSymbol != self.symbol else { return }
+        cleanupPreviousKlineSubscription()
         self.symbol = newSymbol
         self.candles = []
         self.computedIndicators = ComputedIndicators()
@@ -96,11 +116,22 @@ public final class ChartViewModel: @unchecked Sendable {
     
     public func setTimeframe(_ newTimeframe: Timeframe) {
         guard newTimeframe != self.timeframe else { return }
+        cleanupPreviousKlineSubscription()
         self.timeframe = newTimeframe
         self.candles = []
         self.computedIndicators = ComputedIndicators()
         self.manualPriceRange = nil
         loadData()
+    }
+    
+    private func cleanupPreviousKlineSubscription() {
+        if let sym = activeSubscribedSymbol, let tf = activeSubscribedTimeframe {
+            activeSubscribedSymbol = nil
+            activeSubscribedTimeframe = nil
+            Task {
+                await BinanceWebSocketManager.shared.unsubscribeKline(symbol: sym, timeframe: tf)
+            }
+        }
     }
     
     public func loadData() {
@@ -144,7 +175,13 @@ public final class ChartViewModel: @unchecked Sendable {
                 self.errorMessage = "Lỗi tải nến: \(error.localizedDescription)"
             }
             
-            // 3. Subscribe WebSocket for real-time tick updates
+            // 3. Unsubscribe previous stream if different, and subscribe new stream
+            if let oldSym = self.activeSubscribedSymbol, let oldTf = self.activeSubscribedTimeframe,
+               (oldSym != currentSymbol || oldTf != currentTimeframe) {
+                await BinanceWebSocketManager.shared.unsubscribeKline(symbol: oldSym, timeframe: oldTf)
+            }
+            self.activeSubscribedSymbol = currentSymbol
+            self.activeSubscribedTimeframe = currentTimeframe
             await BinanceWebSocketManager.shared.subscribeKline(symbol: currentSymbol, timeframe: currentTimeframe)
         }
     }

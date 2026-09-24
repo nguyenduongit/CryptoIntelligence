@@ -60,5 +60,8 @@ public struct ChartView: View {
         .onAppear {
             viewModel.loadData()
         }
+        .onDisappear {
+            viewModel.cleanup()
+        }
     }
 }
