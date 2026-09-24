@@ -96,65 +96,77 @@ public struct CrosshairTooltipLayer: View {
                 : viewModel.candles.last
             
             if let c = activeCandle {
-                HStack(spacing: 10) {
-                    // Date & Time Stamp
+                HStack(spacing: 8) {
+                    // Symbol & Timeframe badge
                     HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.system(size: 10))
-                            .foregroundColor(AppTheme.cyan)
-                        Text(Formatters.formatCandleTime(ms: c.openTime, timeframe: viewModel.timeframe))
-                            .font(Font.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundColor(AppTheme.cyan)
+                        Text(viewModel.symbol)
+                            .font(Font.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Text(viewModel.timeframe.rawValue)
+                            .font(Font.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1.5)
+                            .background(AppTheme.accentBlue.opacity(0.2))
+                            .foregroundColor(AppTheme.accentBlue)
+                            .clipShape(RoundedRectangle(cornerRadius: 3))
                     }
-                    .padding(.trailing, 2)
+                    .padding(.trailing, 4)
                     
-                    Text(viewModel.symbol)
-                        .font(Font.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
-                    
+                    // Open (O) - Clean Neutral White
                     HStack(spacing: 3) {
                         Text("O")
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.white.opacity(0.45))
                         Text(Formatters.formatPrice(c.open))
-                            .foregroundColor(c.isBullish ? AppTheme.upGreen : AppTheme.downRed)
+                            .foregroundColor(.white.opacity(0.95))
                     }
                     
+                    // High (H) - Peak High in Distinct Green
                     HStack(spacing: 3) {
                         Text("H")
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.white.opacity(0.45))
                         Text(Formatters.formatPrice(c.high))
-                            .foregroundColor(c.isBullish ? AppTheme.upGreen : AppTheme.downRed)
+                            .foregroundColor(AppTheme.upGreen)
                     }
                     
+                    // Low (L) - Lowest Low in Distinct Red
                     HStack(spacing: 3) {
                         Text("L")
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.white.opacity(0.45))
                         Text(Formatters.formatPrice(c.low))
-                            .foregroundColor(c.isBullish ? AppTheme.upGreen : AppTheme.downRed)
+                            .foregroundColor(AppTheme.downRed)
                     }
                     
+                    // Close (C) - Candle Close in Directional Bold Color
                     HStack(spacing: 3) {
                         Text("C")
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.white.opacity(0.45))
                         Text(Formatters.formatPrice(c.close))
+                            .fontWeight(.bold)
                             .foregroundColor(c.isBullish ? AppTheme.upGreen : AppTheme.downRed)
                     }
                     
+                    // Volume (Vol) - Distinct Soft Cyan
                     HStack(spacing: 3) {
                         Text("Vol")
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.white.opacity(0.45))
                         Text(Formatters.formatVolume(c.volume))
-                            .foregroundColor(.white.opacity(0.9))
+                            .foregroundColor(AppTheme.cyan.opacity(0.95))
                     }
                     
+                    // Price Change % Pill
                     Text(Formatters.formatPercentage(c.changePercent))
-                        .font(Font.system(size: 11, weight: .bold, design: .monospaced))
+                        .font(Font.system(size: 10, weight: .bold, design: .monospaced))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background((c.isBullish ? AppTheme.upGreen : AppTheme.downRed).opacity(0.15))
                         .foregroundColor(c.isBullish ? AppTheme.upGreen : AppTheme.downRed)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .font(Font.system(size: 11, weight: .medium, design: .monospaced))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(AppTheme.darkHeaderBg.opacity(0.9))
+                .background(AppTheme.darkHeaderBg.opacity(0.92))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
