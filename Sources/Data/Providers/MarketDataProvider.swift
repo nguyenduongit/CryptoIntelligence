@@ -24,30 +24,22 @@ public actor MarketDataProvider {
         // 2. Fetch Fear & Greed Index
         let (fngValue, fngClassification) = await fetchFearAndGreedIndex()
         
-        // 3. Compute Macro Metrics
+        // 3. Fetch Real Global Market Dominance from CoinGecko Global API
+        let (btcDom, ethDom) = await fetchGlobalMarketDominance()
+        
+        // 4. Compute Macro Metrics
         var totalVolume: Double = 0
-        var btcVolume: Double = 0
-        var ethVolume: Double = 0
         var gainers = 0
         var losers = 0
         
         for t in tickers {
             totalVolume += t.quoteVolume
-            if t.symbol == "BTCUSDT" {
-                btcVolume = t.quoteVolume
-            } else if t.symbol == "ETHUSDT" {
-                ethVolume = t.quoteVolume
-            }
             if t.priceChangePercent >= 0 {
                 gainers += 1
             } else {
                 losers += 1
             }
         }
-        
-        // Approximate Dominance based on market share / relative weight
-        let btcDom = totalVolume > 0 ? min(70.0, max(45.0, (btcVolume / totalVolume) * 100.0 * 2.2)) : 56.5
-        let ethDom = totalVolume > 0 ? min(25.0, max(10.0, (ethVolume / totalVolume) * 100.0 * 1.8)) : 14.8
         
         let metrics = MarketGlobalMetrics(
             total24hVolumeUSDT: totalVolume,
@@ -149,5 +141,31 @@ public actor MarketDataProvider {
             liquidations24hLongUSD: 0,
             liquidations24hShortUSD: 0
         )
+    }
+    
+    public func fetchGlobalMarketDominance() async -> (btcDominance: Double, ethDominance: Double) {
+        guard let url = URL(string: "https://api.coingecko.com/api/v3/global") else {
+            return (56.5, 14.2)
+        }
+        
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 4.0
+        request.setValue("CryptoIntelligence/1.0", forHTTPHeaderField: "User-Agent")
+        
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let dataDict = json["data"] as? [String: Any],
+                  let mcPercentages = dataDict["market_cap_percentage"] as? [String: Any] else {
+                return (56.5, 14.2)
+            }
+            
+            let btc = (mcPercentages["btc"] as? NSNumber)?.doubleValue ?? 56.5
+            let eth = (mcPercentages["eth"] as? NSNumber)?.doubleValue ?? 14.2
+            return (btc, eth)
+        } catch {
+            return (56.5, 14.2)
+        }
     }
 }
