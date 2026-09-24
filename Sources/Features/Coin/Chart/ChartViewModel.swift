@@ -83,6 +83,8 @@ public final class ChartViewModel: @unchecked Sendable {
     public func setSymbol(_ newSymbol: String) {
         guard newSymbol != self.symbol else { return }
         self.symbol = newSymbol
+        self.candles = []
+        self.computedIndicators = ComputedIndicators()
         self.manualPriceRange = nil
         self.activeDrawing = nil
         self.selectedDrawingId = nil
@@ -95,34 +97,39 @@ public final class ChartViewModel: @unchecked Sendable {
     public func setTimeframe(_ newTimeframe: Timeframe) {
         guard newTimeframe != self.timeframe else { return }
         self.timeframe = newTimeframe
+        self.candles = []
+        self.computedIndicators = ComputedIndicators()
         self.manualPriceRange = nil
         loadData()
     }
     
     public func loadData() {
         loadTask?.cancel()
+        let currentSymbol = self.symbol
+        let currentTimeframe = self.timeframe
+        
         loadTask = Task { @MainActor in
             self.isLoading = true
             self.errorMessage = nil
             
             // 1. Read cached candles from SQLite first for instant display
             let cached = loadFromDatabase()
-            if !cached.isEmpty {
-                self.candles = cached
-                self.recomputeIndicators()
-                self.resetViewportToLatest()
-            }
+            guard self.symbol == currentSymbol && self.timeframe == currentTimeframe else { return }
+            
+            self.candles = cached
+            self.recomputeIndicators()
+            self.resetViewportToLatest()
             
             // 2. Fetch historical candles from Binance REST
             do {
                 let fetched = try await candleProvider.fetchHistoricalCandles(
-                    symbol: self.symbol,
-                    timeframe: self.timeframe,
+                    symbol: currentSymbol,
+                    timeframe: currentTimeframe,
                     limit: 2000,
                     endTime: nil
                 )
                 
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.symbol == currentSymbol, self.timeframe == currentTimeframe else { return }
                 
                 if !fetched.isEmpty {
                     self.mergeAndSaveCandles(fetched)
@@ -132,13 +139,13 @@ public final class ChartViewModel: @unchecked Sendable {
                 
                 self.isLoading = false
             } catch {
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.symbol == currentSymbol, self.timeframe == currentTimeframe else { return }
                 self.isLoading = false
                 self.errorMessage = "Lỗi tải nến: \(error.localizedDescription)"
             }
             
             // 3. Subscribe WebSocket for real-time tick updates
-            await BinanceWebSocketManager.shared.subscribeKline(symbol: self.symbol, timeframe: self.timeframe)
+            await BinanceWebSocketManager.shared.subscribeKline(symbol: currentSymbol, timeframe: currentTimeframe)
         }
     }
     
@@ -158,6 +165,7 @@ public final class ChartViewModel: @unchecked Sendable {
     }
     
     private func mergeAndSaveCandles(_ newCandles: [Candle]) {
+        // Only merge with current symbol's candles
         var map = [Int64: Candle]()
         for c in self.candles {
             map[c.openTime] = c
@@ -169,7 +177,9 @@ public final class ChartViewModel: @unchecked Sendable {
         let merged = map.values.sorted { $0.openTime < $1.openTime }
         self.candles = merged
         
-        let records = newCandles.map { CandleRecord(symbol: self.symbol, interval: self.timeframe.intervalString, candle: $0) }
+        let currentSymbol = self.symbol
+        let currentInterval = self.timeframe.intervalString
+        let records = newCandles.map { CandleRecord(symbol: currentSymbol, interval: currentInterval, candle: $0) }
         Task.detached(priority: .background) { [dbManager = self.dbManager] in
             do {
                 try dbManager.dbQueue.write { db in
