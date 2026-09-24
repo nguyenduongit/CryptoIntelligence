@@ -82,6 +82,13 @@ public enum Formatters {
         }
     }
     
+    public static func formatNumber(_ num: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = ","
+        return formatter.string(from: NSNumber(value: num)) ?? "\(num)"
+    }
+    
     public static func formatDateTime(ms: Int64) -> String {
         let date = Date(timeIntervalSince1970: Double(ms) / 1000.0)
         return localDateTimeFormatter.string(from: date)

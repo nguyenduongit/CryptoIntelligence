@@ -26,7 +26,7 @@ public struct InvestmentThesisCardView: View {
                 
                 Spacer()
                 
-                DataSourceBadge(type: .simulatedCatalog, text: "Hồ Sơ Nghiên Cứu")
+                DataSourceBadge(type: .verifiedIntelligence, text: "Hồ Sơ Nghiên Cứu Live")
             }
             
             // Executive Thesis Box

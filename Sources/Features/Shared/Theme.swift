@@ -16,6 +16,7 @@ public enum AppTheme {
     public static let warningYellow = Color(red: 245/255, green: 158/255, blue: 11/255) // #F59E0B
     public static let purple = Color(red: 139/255, green: 92/255, blue: 246/255)     // #8B5CF6
     public static let cyan = Color(red: 6/255, green: 182/255, blue: 212/255)         // #06B6D4
+    public static let accentCyan = Color(red: 6/255, green: 182/255, blue: 212/255)   // #06B6D4
     public static let orange = Color(red: 249/255, green: 115/255, blue: 22/255)     // #F97316
     
     // MARK: - Chart Indicator Colors

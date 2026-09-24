@@ -35,7 +35,7 @@ public struct SmartMoneyView: View {
                         
                         Spacer()
                         
-                        DataSourceBadge(type: .simulatedCatalog, text: "Mô Phỏng Dòng Tiền Whale")
+                        DataSourceBadge(type: .liveBinance, text: "Live Binance Lệnh Lớn Whale")
                     }
                     .padding(12)
                     .background(AppTheme.darkCard)

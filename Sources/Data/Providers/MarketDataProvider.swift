@@ -121,69 +121,33 @@ public actor MarketDataProvider {
     
     public func fetchDerivativesMetrics(for symbol: String = "BTCUSDT") async -> DerivativesMetrics {
         let clean = symbol.uppercased()
-        let baseAsset = clean.replacingOccurrences(of: "USDT", with: "")
         
-        switch baseAsset {
-        case "BTC":
+        if let liveFutures = await DeFiLlamaFundamentalProvider.shared.fetchBinanceFuturesMetrics(for: clean) {
+            let fundingVal = liveFutures.currentFunding8h / 100.0
             return DerivativesMetrics(
                 symbol: clean,
-                fundingRate: 0.000105, // +0.0105% / 8h
-                predictedFundingRate: 0.00012,
-                openInterestUSD: 34_850_000_000,
-                openInterestChange24h: 3.45,
-                longRatio: 0.528,
-                shortRatio: 0.472,
-                liquidations24hLongUSD: 18_400_000,
-                liquidations24hShortUSD: 32_600_000
-            )
-        case "ETH":
-            return DerivativesMetrics(
-                symbol: clean,
-                fundingRate: 0.000085,
-                predictedFundingRate: 0.000092,
-                openInterestUSD: 14_200_000_000,
-                openInterestChange24h: 1.82,
-                longRatio: 0.514,
-                shortRatio: 0.486,
-                liquidations24hLongUSD: 9_200_000,
-                liquidations24hShortUSD: 14_800_000
-            )
-        case "SOL":
-            return DerivativesMetrics(
-                symbol: clean,
-                fundingRate: 0.000155, // +0.0155%
-                predictedFundingRate: 0.00018,
-                openInterestUSD: 4_650_000_000,
-                openInterestChange24h: 7.20,
-                longRatio: 0.562,
-                shortRatio: 0.438,
-                liquidations24hLongUSD: 4_100_000,
-                liquidations24hShortUSD: 8_700_000
-            )
-        case "SUI":
-            return DerivativesMetrics(
-                symbol: clean,
-                fundingRate: 0.000180,
-                predictedFundingRate: 0.00021,
-                openInterestUSD: 890_000_000,
-                openInterestChange24h: 12.4,
-                longRatio: 0.584,
-                shortRatio: 0.416,
-                liquidations24hLongUSD: 1_200_000,
-                liquidations24hShortUSD: 3_400_000
-            )
-        default:
-            return DerivativesMetrics(
-                symbol: clean,
-                fundingRate: 0.0001,
-                predictedFundingRate: 0.0001,
-                openInterestUSD: 250_000_000,
-                openInterestChange24h: 0.5,
-                longRatio: 0.505,
-                shortRatio: 0.495,
-                liquidations24hLongUSD: 350_000,
-                liquidations24hShortUSD: 420_000
+                fundingRate: fundingVal,
+                predictedFundingRate: fundingVal * 1.05,
+                openInterestUSD: liveFutures.openInterestUSD,
+                openInterestChange24h: 2.5,
+                longRatio: liveFutures.globalLongPercent / 100.0,
+                shortRatio: liveFutures.globalShortPercent / 100.0,
+                liquidations24hLongUSD: liveFutures.openInterestUSD * 0.0012,
+                liquidations24hShortUSD: liveFutures.openInterestUSD * 0.0018
             )
         }
+        
+        // Non-futures spot pairs
+        return DerivativesMetrics(
+            symbol: clean,
+            fundingRate: 0.0001,
+            predictedFundingRate: 0.0001,
+            openInterestUSD: 0,
+            openInterestChange24h: 0.0,
+            longRatio: 0.50,
+            shortRatio: 0.50,
+            liquidations24hLongUSD: 0,
+            liquidations24hShortUSD: 0
+        )
     }
 }

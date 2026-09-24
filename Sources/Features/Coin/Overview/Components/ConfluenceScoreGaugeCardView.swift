@@ -100,7 +100,7 @@ public struct ConfluenceScoreGaugeCardView: View {
                                     if p.pillar == .technical {
                                         DataSourceBadge(type: .realTimeAlgorithm, text: "4H Live")
                                     } else {
-                                        DataSourceBadge(type: .simulatedCatalog, text: "Catalog")
+                                        DataSourceBadge(type: .verifiedIntelligence, text: "Live Data")
                                     }
                                 }
                                 

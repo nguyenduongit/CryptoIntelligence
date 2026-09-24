@@ -35,7 +35,7 @@ public struct ProjectProfileView: View {
                         
                         Spacer()
                         
-                        DataSourceBadge(type: .simulatedCatalog, text: "Hồ Sơ Dự Án")
+                        DataSourceBadge(type: .liveDeFiLlama, text: "Live GitHub & CoinGecko Data")
                     }
                     .padding(12)
                     .background(AppTheme.darkCard)

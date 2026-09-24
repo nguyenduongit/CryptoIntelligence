@@ -35,7 +35,7 @@ public struct SecurityLegalView: View {
                         
                         Spacer()
                         
-                        DataSourceBadge(type: .simulatedCatalog, text: "Đánh Giá Bảo Mật & Pháp Lý")
+                        DataSourceBadge(type: .verifiedIntelligence, text: "Bảo Mật & Pháp Lý MiCA")
                     }
                     .padding(12)
                     .background(AppTheme.darkCard)

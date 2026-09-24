@@ -42,7 +42,7 @@ public struct OnChainHealthBannerView: View {
                             .foregroundColor(AppTheme.accentBlue)
                             .clipShape(RoundedRectangle(cornerRadius: 4))
                         
-                        DataSourceBadge(type: .simulatedCatalog, text: "Mô Hình On-Chain & Chu Kỳ")
+                        DataSourceBadge(type: .liveBinance, text: "On-Chain & Lệnh Cá Voi Live")
                     }
                     
                     HStack(spacing: 6) {

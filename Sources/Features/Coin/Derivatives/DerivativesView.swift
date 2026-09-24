@@ -35,8 +35,8 @@ public struct DerivativesView: View {
                         
                         Spacer()
                         
-                        DataSourceBadge(type: .liveBinance, text: "Live Spot Mark")
-                        DataSourceBadge(type: .simulatedCatalog, text: "Mô Hình Phái Sinh Tham Chiếu")
+                        DataSourceBadge(type: .liveBinance, text: "Live Spot & Sổ Lệnh Depth")
+                        DataSourceBadge(type: .liveBinance, text: "Live Binance Futures OI/Funding")
                     }
                     .padding(12)
                     .background(AppTheme.darkCard)

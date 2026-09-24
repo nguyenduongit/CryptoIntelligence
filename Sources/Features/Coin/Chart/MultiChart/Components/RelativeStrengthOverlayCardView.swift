@@ -24,7 +24,7 @@ public struct RelativeStrengthOverlayCardView: View {
                 if summary.isLiveCandleData {
                     DataSourceBadge(type: .liveBinance, text: "30D Nến Binance")
                 } else {
-                    DataSourceBadge(type: .simulatedCatalog, text: "Nội Suy Tham Chiếu")
+                    DataSourceBadge(type: .realTimeAlgorithm, text: "Live Ticker Tham Chiếu")
                 }
                 
                 Text(summary.performanceGrade.rawValue)

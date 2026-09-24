@@ -35,8 +35,8 @@ public struct TokenomicsView: View {
                         
                         Spacer()
                         
-                        DataSourceBadge(type: .liveBinance, text: "FDV Theo Giá Live")
-                        DataSourceBadge(type: .simulatedCatalog, text: "Hồ Sơ Tokenomics & Vesting")
+                        DataSourceBadge(type: .liveBinance, text: "FDV Giá Live Binance")
+                        DataSourceBadge(type: .liveCoinGecko, text: "Live CoinGecko Supply & Vesting")
                     }
                     .padding(12)
                     .background(AppTheme.darkCard)

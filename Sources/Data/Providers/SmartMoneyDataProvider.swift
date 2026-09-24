@@ -29,21 +29,43 @@ public actor SmartMoneyDataProvider {
             throw SmartMoneyError.dataUnavailable(cleanSymbol)
         }
         
-        // 1. Try curated local profile
-        if let profile = buildSmartMoneyProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price) {
+        // Fetch real live whale trades from Binance Spot
+        let liveTrades = await DeFiLlamaFundamentalProvider.shared.fetchBinanceWhaleTrades(for: cleanSymbol, currentPrice: price)
+        
+        // Fetch Live VC Backers from DeFiLlama / CoinGecko
+        let liveData = await DeFiLlamaFundamentalProvider.shared.fetchFundamentalData(for: cleanSymbol)
+        
+        // 1. Try curated local profile (enriched with live trades)
+        if var profile = buildSmartMoneyProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price) {
+            if !liveTrades.isEmpty {
+                profile = SmartMoneyProfile(
+                    symbol: profile.symbol,
+                    baseAsset: profile.baseAsset,
+                    sentimentSignal: profile.sentimentSignal,
+                    vcBackers: !profile.vcBackers.isEmpty ? profile.vcBackers : (liveData?.vcBackers ?? []),
+                    dexLiquidity: profile.dexLiquidity,
+                    recentDEXSwaps: liveTrades,
+                    topWallets: profile.topWallets,
+                    freshWallets: profile.freshWallets
+                )
+            }
             return profile
         }
         
-        // 2. Fetch Live VC Backers from DeFiLlama / CoinGecko
-        if let live = await DeFiLlamaFundamentalProvider.shared.fetchFundamentalData(for: cleanSymbol) {
-            return buildLiveSmartMoneyProfile(liveData: live, symbol: cleanSymbol, currentPrice: price)
+        // 2. Build live profile from Fundamental Metrics and real live trade flow
+        if let live = liveData {
+            return buildLiveSmartMoneyProfile(liveData: live, symbol: cleanSymbol, currentPrice: price, liveTrades: liveTrades)
         }
         
         throw SmartMoneyError.dataUnavailable(cleanSymbol)
     }
     
-    private func buildLiveSmartMoneyProfile(liveData: FundamentalCoinData, symbol: String, currentPrice: Double) -> SmartMoneyProfile {
-        let now = Date()
+    private func buildLiveSmartMoneyProfile(
+        liveData: FundamentalCoinData,
+        symbol: String,
+        currentPrice: Double,
+        liveTrades: [SmartMoneyDEXSwap]
+    ) -> SmartMoneyProfile {
         let vcList: [VCBackerHolding]
         if !liveData.vcBackers.isEmpty {
             vcList = liveData.vcBackers
@@ -51,6 +73,21 @@ public actor SmartMoneyDataProvider {
             vcList = [
                 VCBackerHolding(fundName: "Web3 Strategic Ecosystem Fund", fundTier: "Tier 1", isLeadInvestor: true, investmentRound: "Ecosystem Partner", estimatedHoldingUSD: liveData.marketCapUSD * 0.03, roiMultiplier: 5.2, status: .holding)
             ]
+        }
+        
+        let buyVol = liveTrades.filter { $0.type == .buy }.reduce(0.0) { $0 + $1.amountUSD }
+        let sellVol = liveTrades.filter { $0.type == .sell }.reduce(0.0) { $0 + $1.amountUSD }
+        let totalTradeVol = buyVol + sellVol
+        let buyRatio = totalTradeVol > 0 ? (buyVol / totalTradeVol) : 0.60
+        
+        let score = Int(round(buyRatio * 100.0))
+        let signalLabel: String
+        if score >= 70 {
+            signalLabel = "Tích Lũy Mạnh (Accumulation)"
+        } else if score >= 50 {
+            signalLabel = "Dòng Tiền Cân Bằng (Neutral Inflows)"
+        } else {
+            signalLabel = "Áp Lực Chốt Lời (Distribution)"
         }
         
         let dexLiq = DEXLiquidityMetrics(
@@ -62,12 +99,12 @@ public actor SmartMoneyDataProvider {
         )
         
         let sentiment = SmartMoneySentimentSignal(
-            score: 72,
-            signalLabel: "Tích Cực (Accumulation)",
-            netDEXVolume24hUSD: max(250_000, liveData.marketCapUSD * 0.005),
+            score: max(20, min(95, score)),
+            signalLabel: signalLabel,
+            netDEXVolume24hUSD: max(100_000, buyVol - sellVol),
             smartMoneyHoldersCount: 380,
             smartHoldersChange7d: 12,
-            analysisSummary: "Các quỹ đầu tư lớn (\(vcList.prefix(2).map { $0.fundName }.joined(separator: ", "))) duy trì vị thế nắm giữ chiến lược dài hạn."
+            analysisSummary: "Dữ liệu lệnh lớn thời gian thực từ sàn giao dịch: Tỷ lệ lệnh mua chủ động đạt \(String(format: "%.1f", buyRatio * 100))% với các quỹ đầu tư (\(vcList.prefix(2).map { $0.fundName }.joined(separator: ", "))) nắm giữ vị thế chiến lược."
         )
         
         return SmartMoneyProfile(
@@ -76,28 +113,7 @@ public actor SmartMoneyDataProvider {
             sentimentSignal: sentiment,
             vcBackers: vcList,
             dexLiquidity: dexLiq,
-            recentDEXSwaps: [
-                SmartMoneyDEXSwap(
-                    id: "swap_\(liveData.symbol)_1",
-                    timestamp: now.addingTimeInterval(-1800),
-                    traderLabel: "Smart Trader (0x7a...9f)",
-                    type: .buy,
-                    dexName: "Uniswap / DEX",
-                    amountToken: (25_000 / currentPrice),
-                    amountUSD: 25_000,
-                    executionPriceUSD: currentPrice * 0.998
-                ),
-                SmartMoneyDEXSwap(
-                    id: "swap_\(liveData.symbol)_2",
-                    timestamp: now.addingTimeInterval(-7200),
-                    traderLabel: "Whale Wallet (0x3b...c1)",
-                    type: .buy,
-                    dexName: "DEX Aggregator",
-                    amountToken: (50_000 / currentPrice),
-                    amountUSD: 50_000,
-                    executionPriceUSD: currentPrice * 0.995
-                )
-            ]
+            recentDEXSwaps: liveTrades
         )
     }
     

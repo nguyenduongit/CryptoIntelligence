@@ -20,13 +20,16 @@ public actor ProjectDataProvider {
         let cleanSymbol = symbol.uppercased()
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
         
-        // 1. Try curated local profile
-        if let profile = buildProjectProfile(baseAsset: baseAsset, symbol: cleanSymbol) {
+        // Fetch Live Fundamental & GitHub Developer data from DeFiLlama / CoinGecko
+        let liveData = await DeFiLlamaFundamentalProvider.shared.fetchFundamentalData(for: cleanSymbol)
+        
+        // 1. Try curated local profile (enriched with live GitHub metrics & official links)
+        if let profile = buildProjectProfile(baseAsset: baseAsset, symbol: cleanSymbol, liveData: liveData) {
             return profile
         }
         
         // 2. Fetch Live Fundamental & GitHub Developer data from DeFiLlama / CoinGecko
-        if let live = await DeFiLlamaFundamentalProvider.shared.fetchFundamentalData(for: cleanSymbol) {
+        if let live = liveData {
             return buildLiveProjectProfile(liveData: live, symbol: cleanSymbol)
         }
         
@@ -65,15 +68,17 @@ public actor ProjectDataProvider {
                 EcosystemPartner(name: "Cross-Chain Bridges", category: "Interoperability", description: "Cầu nối thanh khoản đa chuỗi"),
                 EcosystemPartner(name: "Institutional Validators", category: "Security", description: "Mạng lưới đơn vị xác thực giao dịch")
             ],
-            officialLinks: liveData.officialLinks,
+            officialLinks: !liveData.officialLinks.isEmpty ? liveData.officialLinks : [
+                OfficialResourceLink(title: "Website", url: "https://\(liveData.symbol.lowercased()).org", iconName: "globe")
+            ],
             competitors: buildCompetitors(baseAsset: liveData.symbol),
             developerActivity: liveData.developerActivity
         )
     }
     
-    private func buildProjectProfile(baseAsset: String, symbol: String) -> ProjectProfile? {
+    private func buildProjectProfile(baseAsset: String, symbol: String, liveData: FundamentalCoinData?) -> ProjectProfile? {
         let competitors = buildCompetitors(baseAsset: baseAsset)
-        let developerActivity = buildDeveloperActivity(baseAsset: baseAsset)
+        let developerActivity = liveData?.developerActivity ?? buildDeveloperActivity(baseAsset: baseAsset)
         
         switch baseAsset {
         case "BTC":

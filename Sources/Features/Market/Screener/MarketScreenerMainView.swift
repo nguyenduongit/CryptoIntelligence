@@ -33,8 +33,8 @@ public struct MarketScreenerMainView: View {
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
                         
-                        DataSourceBadge(type: .simulatedCatalog, text: "Kịch Bản Radar Heuristic")
-                        DataSourceBadge(type: .liveBinance, text: "Giá Mark Live")
+                        DataSourceBadge(type: .realTimeAlgorithm, text: "Radar Tín Hiệu Live")
+                        DataSourceBadge(type: .liveBinance, text: "Ticker 24h Binance")
                     }
                     
                     Spacer()

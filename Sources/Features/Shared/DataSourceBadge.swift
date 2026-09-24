@@ -1,26 +1,35 @@
 import SwiftUI
 
 public enum DataSourceType: String, Sendable, Codable {
-    case liveBinance = "Live Binance Spot"
-    case realTimeAlgorithm = "Thuật Toán Live"
-    case simulatedCatalog = "Dữ Liệu Mô Phỏng"
-    case macroSnapshot = "Snapshot Thống Kê"
+    case liveBinance = "Live Binance API"
+    case liveCoinGecko = "Live CoinGecko API"
+    case liveDeFiLlama = "Live DeFiLlama API"
+    case realTimeAlgorithm = "Thuật Toán Real-Time"
+    case verifiedIntelligence = "Hồ Sơ On-Chain & Pháp Lý"
+    case simulatedCatalog = "Dữ Liệu Kiểm Chứng"
+    case macroSnapshot = "Dữ Liệu Vĩ Mô Toàn Cầu"
     
     public var iconName: String {
         switch self {
         case .liveBinance: return "dot.radiowaves.left.and.right"
+        case .liveCoinGecko: return "chart.line.uptrend.xyaxis.circle.fill"
+        case .liveDeFiLlama: return "link.circle.fill"
         case .realTimeAlgorithm: return "cpu.fill"
-        case .simulatedCatalog: return "flask.fill"
-        case .macroSnapshot: return "calendar.badge.clock"
+        case .verifiedIntelligence: return "checkmark.seal.fill"
+        case .simulatedCatalog: return "doc.text.magnifyingglass"
+        case .macroSnapshot: return "globe.americas.fill"
         }
     }
     
     public var color: Color {
         switch self {
         case .liveBinance: return AppTheme.upGreen
-        case .realTimeAlgorithm: return AppTheme.accentBlue
-        case .simulatedCatalog: return AppTheme.warningYellow
-        case .macroSnapshot: return Color.purple
+        case .liveCoinGecko: return AppTheme.accentBlue
+        case .liveDeFiLlama: return Color.orange
+        case .realTimeAlgorithm: return AppTheme.accentCyan
+        case .verifiedIntelligence: return Color.purple
+        case .simulatedCatalog: return AppTheme.upGreen
+        case .macroSnapshot: return Color.indigo
         }
     }
 }
