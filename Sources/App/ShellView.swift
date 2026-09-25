@@ -55,6 +55,17 @@ public struct ShellView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             setupWebSocket()
+            updateOrderFlowWatch()
+        }
+        .onChange(of: selectedSymbol) { _, _ in
+            updateOrderFlowWatch()
+        }
+    }
+
+    private func updateOrderFlowWatch() {
+        let symbol = selectedSymbol
+        Task {
+            await OrderFlowCollector.shared.watch(symbols: ["BTCUSDT", "ETHUSDT", symbol])
         }
     }
     
