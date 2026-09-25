@@ -78,6 +78,10 @@ public struct OrderFlowFootprintView: View {
                 }
                 .font(.system(size: 11, weight: .medium))
 
+                Text("Tỷ lệ kết nối chỉ đo thời gian nhận được luồng, chưa xác nhận mọi giao dịch đã đến. Tổng này không đại diện toàn thị trường.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+
                 if snapshot.coverage.contains(where: { $0.fraction < 0.98 }) {
                     Text("Dữ liệu trong khoảng chọn chưa đầy đủ. Các khoảng không thu được không được tính là 0; tổng bên dưới chỉ là giao dịch đã quan sát.")
                         .font(.system(size: 11))
