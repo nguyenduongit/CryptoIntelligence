@@ -134,10 +134,15 @@ public struct OrderFlowFootprintView: View {
                 let step = Int64(candleMinutes) * 60_000
                 let start = now / step * step - Int64(candleOffset) * step
                 let end = min(now, start + step)
+                let venues = FlowVenue.allCases.filter { selectedVenues.contains($0) }
+                let requestedSymbol = symbol
                 do {
-                    snapshot = try OrderFlowStore.shared.snapshot(
-                        symbol: symbol, since: start, until: end,
-                        venues: FlowVenue.allCases.filter { selectedVenues.contains($0) })
+                    let result = try await Task.detached(priority: .utility) {
+                        try OrderFlowStore.shared.snapshot(symbol: requestedSymbol, since: start,
+                                                           until: end, venues: venues)
+                    }.value
+                    guard !Task.isCancelled else { return }
+                    snapshot = result
                     errorMessage = nil
                 } catch {
                     errorMessage = "Không thể đọc footprint: \(error.localizedDescription)"
