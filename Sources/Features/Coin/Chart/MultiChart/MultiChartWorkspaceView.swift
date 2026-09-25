@@ -7,6 +7,7 @@ public struct MultiChartWorkspaceView: View {
     
     @State private var relativeStrengthSummary: RelativeStrengthSummary? = nil
     @State private var panes: [MultiChartPaneConfig] = []
+    @State private var showFootprint = false
     
     private let availableSymbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "SUIUSDT", "NEARUSDT"]
     
@@ -23,10 +24,17 @@ public struct MultiChartWorkspaceView: View {
     public var body: some View {
         VStack(spacing: 0) {
             // Top Toolbar for Layout & Relative Strength
-            MultiChartLayoutSelectorBar(
-                layout: $layout,
-                showRelativeStrength: $showRelativeStrength
-            )
+            HStack(spacing: 8) {
+                MultiChartLayoutSelectorBar(
+                    layout: $layout,
+                    showRelativeStrength: $showRelativeStrength
+                )
+                Button(showFootprint ? "Chart" : "Footprint") {
+                    showFootprint.toggle()
+                }
+                .buttonStyle(.bordered)
+                .padding(.trailing, 12)
+            }
             
             // Relative Strength Overlay (if enabled)
             if showRelativeStrength, let summary = relativeStrengthSummary {
@@ -36,9 +44,14 @@ public struct MultiChartWorkspaceView: View {
             }
             
             // Multi-Pane Content
-            layoutContainer
-                .padding(8)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if showFootprint {
+                OrderFlowFootprintView(symbol: primarySymbol)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                layoutContainer
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .background(AppTheme.darkBackground)
         .task(id: primarySymbol) {

@@ -163,6 +163,42 @@ public final class DatabaseManager: @unchecked Sendable {
             """)
         }
         
+        migrator.registerMigration("v8_create_order_flow_tables") { db in
+            try db.create(table: "flow_trades", ifNotExists: true) { t in
+                t.column("venue", .text).notNull()
+                t.column("symbol", .text).notNull()
+                t.column("tradeId", .text).notNull()
+                t.column("timestampMs", .integer).notNull()
+                t.column("price", .double).notNull()
+                t.column("quantity", .double).notNull()
+                t.column("isTakerBuy", .boolean).notNull()
+                t.primaryKey(["venue", "symbol", "tradeId"])
+            }
+            try db.create(index: "idx_flow_trades_retention", on: "flow_trades",
+                          columns: ["timestampMs"], ifNotExists: true)
+            try db.create(table: "flow_minutes", ifNotExists: true) { t in
+                t.column("venue", .text).notNull()
+                t.column("symbol", .text).notNull()
+                t.column("minuteMs", .integer).notNull()
+                t.column("priceBin", .integer).notNull()
+                t.column("buyQuantity", .double).notNull()
+                t.column("sellQuantity", .double).notNull()
+                t.primaryKey(["venue", "symbol", "minuteMs", "priceBin"])
+            }
+            try db.create(index: "idx_flow_minutes_retention", on: "flow_minutes",
+                          columns: ["minuteMs"], ifNotExists: true)
+            try db.create(table: "flow_sessions", ifNotExists: true) { t in
+                t.column("id", .text).primaryKey()
+                t.column("venue", .text).notNull()
+                t.column("symbol", .text).notNull()
+                t.column("startMs", .integer).notNull()
+                t.column("lastSeenMs", .integer).notNull()
+                t.column("endMs", .integer)
+            }
+            try db.create(index: "idx_flow_sessions_lookup", on: "flow_sessions",
+                          columns: ["venue", "symbol", "startMs"], ifNotExists: true)
+        }
+
         try migrator.migrate(dbQueue)
     }
 }
