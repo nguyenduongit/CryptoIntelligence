@@ -20,14 +20,6 @@ public struct MarketSidebarView: View {
                         .padding(.horizontal, 10)
                     
                     sectorsSection
-                    
-                    Divider()
-                        .background(AppTheme.darkBorder)
-                        .padding(.horizontal, 10)
-                    
-                    if viewModel.globalMetrics != nil {
-                        macroQuickWidget
-                    }
                 }
                 .padding(.vertical, 8)
                 .padding(.horizontal, 4)
@@ -37,27 +29,29 @@ public struct MarketSidebarView: View {
         .background(AppTheme.darkSidebarBg)
     }
     
-    // MARK: - 1. Header
+    // MARK: - 1. Clean Header
     private var headerView: some View {
         HStack {
             HStack(spacing: 6) {
                 Image(systemName: "globe.asia.australia.fill")
                     .font(.system(size: 13))
                     .foregroundColor(AppTheme.accentBlue)
-                Text("Thị Trường Toàn Cảnh")
+                Text("Thị Trường")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white)
             }
             
             Spacer()
             
-            Button(action: { viewModel.loadData() }) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.6))
+            if !viewModel.tickers.isEmpty {
+                Text("\(viewModel.tickers.count) mã")
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.45))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(AppTheme.darkCard)
+                    .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
-            .help("Làm mới dữ liệu thị trường")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -75,7 +69,7 @@ public struct MarketSidebarView: View {
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.white.opacity(0.4))
                 .padding(.horizontal, 10)
-                .padding(.top, 6)
+                .padding(.top, 4)
             
             ForEach(MarketViewMode.allCases) { mode in
                 let isSelected = (viewModel.selectedViewMode == mode)
@@ -102,7 +96,7 @@ public struct MarketSidebarView: View {
                         }
                     }
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
+                    .padding(.vertical, 6.5)
                     .background(isSelected ? AppTheme.darkCard : Color.clear)
                     .foregroundColor(isSelected ? .white : .white.opacity(0.7))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -140,6 +134,7 @@ public struct MarketSidebarView: View {
             ForEach(CryptoSector.allCases) { sector in
                 let isSelected = (viewModel.selectedSector == sector)
                 let count = (sector == .all) ? viewModel.tickers.count : viewModel.tickers.filter { $0.sector == sector }.count
+                let sectorPerf = viewModel.sectorPerformances.first(where: { $0.sector == sector })
                 
                 Button(action: {
                     viewModel.selectedSector = sector
@@ -158,6 +153,13 @@ public struct MarketSidebarView: View {
                         
                         Spacer()
                         
+                        // 24h Average Sector Performance
+                        if let perf = sectorPerf, sector != .all {
+                            Text(String(format: "%+.1f%%", perf.avgChange24h))
+                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                .foregroundColor(perf.avgChange24h >= 0 ? AppTheme.upGreen : AppTheme.downRed)
+                        }
+                        
                         if count > 0 {
                             Text("\(count)")
                                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
@@ -175,58 +177,6 @@ public struct MarketSidebarView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
-            }
-        }
-    }
-    
-    // MARK: - 4. Mini Macro Quick Widget
-    @ViewBuilder
-    private var macroQuickWidget: some View {
-        if let metrics = viewModel.globalMetrics {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("TỔNG QUAN THỊ TRƯỜNG")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white.opacity(0.4))
-                    .padding(.horizontal, 10)
-                
-                VStack(spacing: 6) {
-                    HStack {
-                        Text("Tâm lý:")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.5))
-                        Spacer()
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(AppTheme.upGreen)
-                                .frame(width: 6, height: 6)
-                            Text("\(metrics.fearAndGreedIndex) (\(metrics.fearAndGreedClassification))")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(AppTheme.upGreen)
-                        }
-                    }
-                    
-                    HStack {
-                        Text("BTC.D:")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.5))
-                        Text(String(format: "%.1f%%", metrics.btcDominancePercent))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundColor(AppTheme.warningYellow)
-                        
-                        Spacer()
-                        
-                        Text("ETH.D:")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.5))
-                        Text(String(format: "%.1f%%", metrics.ethDominancePercent))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundColor(AppTheme.cyan)
-                    }
-                }
-                .padding(10)
-                .background(AppTheme.darkCard)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .padding(.horizontal, 6)
             }
         }
     }

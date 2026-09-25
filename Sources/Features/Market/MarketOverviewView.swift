@@ -96,40 +96,96 @@ public struct MarketOverviewView: View {
     @ViewBuilder
     private var marketToolbar: some View {
         HStack(spacing: 12) {
-            // Active Mode Title Pill
-            HStack(spacing: 6) {
-                Image(systemName: viewModel.selectedViewMode.iconName)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(AppTheme.accentBlue)
-                Text(viewModel.selectedViewMode.rawValue)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
-                
-                if viewModel.selectedViewMode != .macro && viewModel.selectedSector != .all {
-                    Text("•")
-                        .foregroundColor(.white.opacity(0.4))
-                    Text(viewModel.selectedSector.rawValue)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(AppTheme.cyan)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(AppTheme.cyan.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+            // MARK: - Top-Bar Segmented View Modes Switcher
+            HStack(spacing: 4) {
+                ForEach(MarketViewMode.allCases) { mode in
+                    let isSelected = (viewModel.selectedViewMode == mode)
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            viewModel.selectedViewMode = mode
+                        }
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: mode.iconName)
+                                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                                .foregroundColor(isSelected ? AppTheme.accentBlue : .white.opacity(0.6))
+                            
+                            Text(mode.rawValue)
+                                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(isSelected ? AppTheme.accentBlue.opacity(0.18) : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(isSelected ? AppTheme.accentBlue.opacity(0.45) : Color.clear, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
+            .padding(3)
+            .background(AppTheme.darkCard.opacity(0.6))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(AppTheme.darkBorder, lineWidth: 1)
+            )
             
-            Spacer()
+            Spacer(minLength: 8)
             
-            // Search Box (for coin search)
+            // MARK: - Sector Filter Dropdown Menu
+            if viewModel.selectedViewMode != .macro {
+                Menu {
+                    ForEach(CryptoSector.allCases) { sector in
+                        Button(action: {
+                            viewModel.selectedSector = sector
+                        }) {
+                            HStack {
+                                Label(sector.rawValue, systemImage: sector.iconName)
+                                if viewModel.selectedSector == sector {
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: viewModel.selectedSector.iconName)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(viewModel.selectedSector == .all ? .white.opacity(0.6) : AppTheme.cyan)
+                        Text(viewModel.selectedSector == .all ? "Phân khúc: Tất cả" : viewModel.selectedSector.rawValue)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(viewModel.selectedSector == .all ? .white.opacity(0.85) : AppTheme.cyan)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.4))
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(viewModel.selectedSector == .all ? AppTheme.darkCard : AppTheme.cyan.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(viewModel.selectedSector == .all ? AppTheme.darkBorder : AppTheme.cyan.opacity(0.4), lineWidth: 1)
+                    )
+                }
+                .menuStyle(.borderlessButton)
+            }
+            
+            // MARK: - Search Box
             if viewModel.selectedViewMode != .macro {
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.white.opacity(0.4))
                         .font(.system(size: 11))
-                    TextField("Tìm coin...", text: $viewModel.searchQuery)
+                    TextField("Tìm coin (BTC, SOL)...", text: $viewModel.searchQuery)
                         .textFieldStyle(.plain)
                         .font(.system(size: 11))
-                        .frame(width: 140)
+                        .frame(width: 130)
                     
                     if !viewModel.searchQuery.isEmpty {
                         Button(action: { viewModel.searchQuery = "" }) {
@@ -141,7 +197,7 @@ public struct MarketOverviewView: View {
                     }
                 }
                 .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+                .padding(.vertical, 4.5)
                 .background(AppTheme.darkCard)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay(
@@ -150,7 +206,7 @@ public struct MarketOverviewView: View {
                 )
             }
             
-            // Single Unified Refresh Button
+            // MARK: - Single Unified Refresh Button
             Button(action: { viewModel.loadData() }) {
                 HStack(spacing: 5) {
                     if viewModel.isLoading {
@@ -163,7 +219,7 @@ public struct MarketOverviewView: View {
                     Text("Làm mới")
                         .font(.system(size: 11, weight: .medium))
                 }
-                .padding(.horizontal, 10)
+                .padding(.horizontal, 9)
                 .padding(.vertical, 5)
                 .background(AppTheme.darkCard)
                 .foregroundColor(.white.opacity(0.85))
@@ -177,7 +233,7 @@ public struct MarketOverviewView: View {
             .disabled(viewModel.isLoading)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .padding(.vertical, 6)
         .background(AppTheme.darkHeaderBg)
         .overlay(
             Rectangle()
