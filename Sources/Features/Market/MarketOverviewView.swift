@@ -136,36 +136,6 @@ public struct MarketOverviewView: View {
             
             Spacer(minLength: 8)
             
-            // MARK: - Search Box
-            if viewModel.selectedViewMode != .macro {
-                HStack(spacing: 6) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.white.opacity(0.4))
-                        .font(.system(size: 11))
-                    TextField("Tìm coin (BTC, SOL)...", text: $viewModel.searchQuery)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 11))
-                        .frame(width: 130)
-                    
-                    if !viewModel.searchQuery.isEmpty {
-                        Button(action: { viewModel.searchQuery = "" }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.white.opacity(0.4))
-                                .font(.system(size: 10))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4.5)
-                .background(AppTheme.darkCard)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(AppTheme.darkBorder, lineWidth: 1)
-                )
-            }
-            
             // MARK: - Single Unified Refresh Button
             Button(action: { viewModel.loadData() }) {
                 HStack(spacing: 5) {
