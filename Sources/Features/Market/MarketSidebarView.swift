@@ -12,13 +12,7 @@ public struct MarketSidebarView: View {
             headerView
             
             ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    viewModesSection
-                    
-                    Divider()
-                        .background(AppTheme.darkBorder)
-                        .padding(.horizontal, 10)
-                    
+                VStack(alignment: .leading, spacing: 10) {
                     sectorsSection
                 }
                 .padding(.vertical, 8)
@@ -33,10 +27,10 @@ public struct MarketSidebarView: View {
     private var headerView: some View {
         HStack {
             HStack(spacing: 6) {
-                Image(systemName: "globe.asia.australia.fill")
+                Image(systemName: "square.grid.3x3.fill")
                     .font(.system(size: 13))
                     .foregroundColor(AppTheme.accentBlue)
-                Text("Thị Trường")
+                Text("Phân Khúc")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white)
             }
@@ -62,60 +56,7 @@ public struct MarketSidebarView: View {
         )
     }
     
-    // MARK: - 2. View Modes Section
-    private var viewModesSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("CHẾ ĐỘ XEM")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.white.opacity(0.4))
-                .padding(.horizontal, 10)
-                .padding(.top, 4)
-            
-            ForEach(MarketViewMode.allCases) { mode in
-                viewModeButton(for: mode)
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private func viewModeButton(for mode: MarketViewMode) -> some View {
-        let isSelected = (viewModel.selectedViewMode == mode)
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                viewModel.selectedViewMode = mode
-            }
-        }) {
-            HStack(spacing: 8) {
-                Image(systemName: mode.iconName)
-                    .font(.system(size: 12))
-                    .foregroundColor(isSelected ? AppTheme.accentBlue : .white.opacity(0.6))
-                    .frame(width: 18)
-                
-                Text(mode.rawValue)
-                    .font(.system(size: 12, weight: isSelected ? .bold : .medium))
-                
-                Spacer()
-                
-                if isSelected {
-                    Circle()
-                        .fill(AppTheme.accentBlue)
-                        .frame(width: 6, height: 6)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6.5)
-            .background(isSelected ? AppTheme.darkCard : Color.clear)
-            .foregroundColor(isSelected ? .white : .white.opacity(0.7))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? AppTheme.accentBlue.opacity(0.4) : Color.clear, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-    
-    // MARK: - 3. Sectors Filter Section
+    // MARK: - 2. Sectors Filter Section
     private var sectorsSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             sectorsHeader
@@ -128,7 +69,7 @@ public struct MarketSidebarView: View {
     
     private var sectorsHeader: some View {
         HStack {
-            Text("LỌC PHÂN KHÚC (SECTORS)")
+            Text("LỌC BẢN ĐỒ NHIỆT")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.white.opacity(0.4))
             
@@ -144,6 +85,7 @@ public struct MarketSidebarView: View {
             }
         }
         .padding(.horizontal, 10)
+        .padding(.top, 4)
     }
     
     @ViewBuilder
@@ -154,8 +96,10 @@ public struct MarketSidebarView: View {
         
         Button(action: {
             viewModel.selectedSector = sector
-            if viewModel.selectedViewMode == .macro {
-                viewModel.selectedViewMode = .heatmap
+            if viewModel.selectedViewMode != .heatmap {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.selectedViewMode = .heatmap
+                }
             }
         }) {
             HStack(spacing: 8) {
@@ -187,7 +131,7 @@ public struct MarketSidebarView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .padding(.vertical, 5.5)
             .background(isSelected ? AppTheme.cyan.opacity(0.12) : Color.clear)
             .foregroundColor(isSelected ? .white : .white.opacity(0.7))
             .clipShape(RoundedRectangle(cornerRadius: 6))

@@ -136,46 +136,6 @@ public struct MarketOverviewView: View {
             
             Spacer(minLength: 8)
             
-            // MARK: - Sector Filter Dropdown Menu
-            if viewModel.selectedViewMode != .macro {
-                Menu {
-                    ForEach(CryptoSector.allCases) { sector in
-                        Button(action: {
-                            viewModel.selectedSector = sector
-                        }) {
-                            HStack {
-                                Label(sector.rawValue, systemImage: sector.iconName)
-                                if viewModel.selectedSector == sector {
-                                    Spacer()
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: viewModel.selectedSector.iconName)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(viewModel.selectedSector == .all ? .white.opacity(0.6) : AppTheme.cyan)
-                        Text(viewModel.selectedSector == .all ? "Phân khúc: Tất cả" : viewModel.selectedSector.rawValue)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(viewModel.selectedSector == .all ? .white.opacity(0.85) : AppTheme.cyan)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.4))
-                    }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(viewModel.selectedSector == .all ? AppTheme.darkCard : AppTheme.cyan.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(viewModel.selectedSector == .all ? AppTheme.darkBorder : AppTheme.cyan.opacity(0.4), lineWidth: 1)
-                    )
-                }
-                .menuStyle(.borderlessButton)
-            }
-            
             // MARK: - Search Box
             if viewModel.selectedViewMode != .macro {
                 HStack(spacing: 6) {
