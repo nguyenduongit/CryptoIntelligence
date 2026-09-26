@@ -3,6 +3,7 @@ import Foundation
 public actor MacroIndicesDataProvider {
     public static let shared = MacroIndicesDataProvider()
     
+    private let candleProvider: BinanceCandleProvider
     private var snapshotsCache: (data: [MacroIndexSnapshot], timestamp: Date)?
     private var seasonReportCache: (data: MarketSeasonReport, timestamp: Date)?
     private var stablecoinsCache: (data: [StablecoinBreakdownItem], totalUSD: Double, timestamp: Date)?
@@ -10,7 +11,9 @@ public actor MacroIndicesDataProvider {
     
     private let cacheTTL: TimeInterval = 60 // 1 minute fresh cache
     
-    public init() {}
+    public init(candleProvider: BinanceCandleProvider = .shared) {
+        self.candleProvider = candleProvider
+    }
     
     public func fetchMacroSnapshots() async -> [MacroIndexSnapshot] {
         if let cached = snapshotsCache, Date().timeIntervalSince(cached.timestamp) < cacheTTL {
@@ -44,7 +47,16 @@ public actor MacroIndicesDataProvider {
         let currentSnap = snapshots.first { $0.indexType == index }
         let currentPrice = currentSnap?.currentValue ?? defaultBaseValue(for: index)
         
-        let candles = generateIndexCandles(index: index, timeframe: timeframe, currentLivePrice: currentPrice)
+        let tf = Timeframe(rawValue: timeframe) ?? .d1
+        let btcCandles = (try? await candleProvider.fetchHistoricalCandles(symbol: "BTCUSDT", timeframe: tf, limit: 60)) ?? []
+        let ethCandles = (try? await candleProvider.fetchHistoricalCandles(symbol: "ETHUSDT", timeframe: tf, limit: 60)) ?? []
+        
+        let candles: [MacroIndexCandle]
+        if btcCandles.count >= 10 {
+            candles = buildIndexCandlesFromMarket(index: index, btcCandles: btcCandles, ethCandles: ethCandles, currentLivePrice: currentPrice)
+        } else {
+            candles = generateIndexCandles(index: index, timeframe: timeframe, currentLivePrice: currentPrice)
+        }
         candlesCache[key] = (candles, Date())
         return candles
     }
@@ -417,6 +429,88 @@ public actor MacroIndicesDataProvider {
         }
     }
     
+    private func buildIndexCandlesFromMarket(
+        index: MacroIndexType,
+        btcCandles: [Candle],
+        ethCandles: [Candle],
+        currentLivePrice: Double
+    ) -> [MacroIndexCandle] {
+        let count = min(btcCandles.count, ethCandles.isEmpty ? btcCandles.count : ethCandles.count)
+        guard count >= 2 else { return [] }
+        
+        let btcSlice = Array(btcCandles.suffix(count))
+        let ethSlice = Array(ethCandles.suffix(count))
+        
+        // Calculate step-by-step returns
+        var indexReturns: [Double] = []
+        for i in 0..<count {
+            let b = btcSlice[i]
+            let bRet = b.open > 0 ? (b.close - b.open) / b.open : 0.0
+            let eRet: Double
+            if i < ethSlice.count, ethSlice[i].open > 0 {
+                let e = ethSlice[i]
+                eRet = (e.close - e.open) / e.open
+            } else {
+                eRet = bRet
+            }
+            
+            let ret: Double
+            switch index {
+            case .total:
+                ret = 0.70 * bRet + 0.30 * eRet
+            case .total2:
+                ret = 0.45 * eRet + 0.55 * (1.1 * eRet - 0.1 * bRet)
+            case .total3:
+                ret = 1.15 * eRet - 0.15 * bRet
+            case .btcD:
+                ret = (bRet - eRet) * 0.22
+            case .ethD:
+                ret = (eRet - bRet) * 0.22
+            case .usdtD, .stableD:
+                ret = -0.60 * (0.70 * bRet + 0.30 * eRet)
+            case .othersD:
+                ret = (1.2 * eRet - 0.2 * bRet - bRet) * 0.20
+            }
+            indexReturns.append(ret)
+        }
+        
+        // Reconstruct price trajectory backwards so that the last candle's close matches currentLivePrice
+        var reconstructedCloses: [Double] = Array(repeating: 0.0, count: count)
+        reconstructedCloses[count - 1] = currentLivePrice
+        for i in (0..<(count - 1)).reversed() {
+            let ret = indexReturns[i + 1]
+            reconstructedCloses[i] = max(0.01, reconstructedCloses[i + 1] / (1.0 + ret))
+        }
+        
+        var result: [MacroIndexCandle] = []
+        for i in 0..<count {
+            let b = btcSlice[i]
+            let close = reconstructedCloses[i]
+            let ret = indexReturns[i]
+            let open = max(0.01, close / (1.0 + ret))
+            
+            let upperRatio = b.open > 0 ? max(0.0, (b.high - max(b.open, b.close)) / b.open) : 0.001
+            let lowerRatio = b.open > 0 ? max(0.0, (min(b.open, b.close) - b.low) / b.open) : 0.001
+            
+            let high = max(open, close) * (1.0 + min(0.05, upperRatio))
+            let low = min(open, close) * (1.0 - min(0.05, lowerRatio))
+            let volume = b.volume * (currentLivePrice / max(1.0, b.close))
+            
+            let timestamp = Date(timeIntervalSince1970: TimeInterval(b.openTime) / 1000.0)
+            result.append(
+                MacroIndexCandle(
+                    timestamp: timestamp,
+                    open: open,
+                    high: high,
+                    low: low,
+                    close: close,
+                    volume: volume
+                )
+            )
+        }
+        return result
+    }
+    
     private func generateIndexCandles(index: MacroIndexType, timeframe: String, currentLivePrice: Double) -> [MacroIndexCandle] {
         let count = 60
         let now = Date()
@@ -430,27 +524,27 @@ public actor MacroIndicesDataProvider {
         
         var volatility: Double
         switch index {
-        case .total: volatility = 0.015
-        case .total2: volatility = 0.022
-        case .total3: volatility = 0.028
-        case .btcD: volatility = 0.006
-        case .ethD: volatility = 0.010
-        case .stableD: volatility = 0.005
-        case .usdtD: volatility = 0.006
-        case .othersD: volatility = 0.018
+        case .total: volatility = 0.012
+        case .total2: volatility = 0.018
+        case .total3: volatility = 0.022
+        case .btcD: volatility = 0.005
+        case .ethD: volatility = 0.008
+        case .stableD: volatility = 0.004
+        case .usdtD: volatility = 0.005
+        case .othersD: volatility = 0.015
         }
         
         var candles: [MacroIndexCandle] = []
-        var currentPrice = currentLivePrice * 0.95
+        var currentPrice = currentLivePrice * 0.96
         
         for i in (0..<count).reversed() {
             let candleTime = now.addingTimeInterval(-Double(i) * interval)
-            let deltaPercent = Double.random(in: -volatility...volatility * 1.05)
+            let wave = sin(Double(i) * 0.35 + Double(index.hashValue % 10)) * volatility
             let open = currentPrice
-            let close = max(0.1, open * (1.0 + deltaPercent))
-            let high = max(open, close) * (1.0 + Double.random(in: 0.001...volatility * 0.5))
-            let low = min(open, close) * (1.0 - Double.random(in: 0.001...volatility * 0.5))
-            let volume = open * Double.random(in: 0.02...0.06)
+            let close = max(0.1, (i == 0) ? currentLivePrice : open * (1.0 + wave))
+            let high = max(open, close) * (1.0 + abs(wave) * 0.4 + 0.001)
+            let low = min(open, close) * (1.0 - abs(wave) * 0.4 - 0.001)
+            let volume = open * 0.03
             
             candles.append(
                 MacroIndexCandle(
@@ -470,11 +564,11 @@ public actor MacroIndicesDataProvider {
     
     private func generateSparkline(base: Double, trend: Double) -> [Double] {
         var points: [Double] = []
-        var cur = base * (1.0 - (trend / 100.0))
-        for _ in 0..<14 {
-            let delta = (Double.random(in: -0.01...0.015) + (trend / 1400.0)) * cur
-            cur = max(0.1, cur + delta)
-            points.append(cur)
+        for step in 0..<14 {
+            let progress = Double(step) / 13.0
+            let wave = sin(Double(step) * 0.8) * 0.005
+            let cur = base * (1.0 - (trend / 100.0) * (1.0 - progress) + wave)
+            points.append(max(0.01, cur))
         }
         return points
     }

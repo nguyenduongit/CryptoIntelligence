@@ -15,6 +15,8 @@ public actor SmartMoneyDataProvider {
     public static let shared = SmartMoneyDataProvider()
     
     private let candleProvider: BinanceCandleProvider
+    private var profileCache: [String: (profile: SmartMoneyProfile, timestamp: Date)] = [:]
+    private let cacheTTL: TimeInterval = 300 // 5 minutes cache for rock-solid stability
     
     public init(candleProvider: BinanceCandleProvider = .shared) {
         self.candleProvider = candleProvider
@@ -24,18 +26,30 @@ public actor SmartMoneyDataProvider {
         let cleanSymbol = symbol.uppercased()
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
         
+        // 0. Check session cache first (zero latency & consistent score when switching tabs/coins)
+        if let cached = profileCache[cleanSymbol], Date().timeIntervalSince(cached.timestamp) < cacheTTL {
+            return cached.profile
+        }
+        
         // Fetch current price for accurate USD calculations
         guard let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
             throw SmartMoneyError.dataUnavailable(cleanSymbol)
         }
         
-        // Fetch real live whale trades from Binance Spot
-        let liveTrades = await DeFiLlamaFundamentalProvider.shared.fetchBinanceWhaleTrades(for: cleanSymbol, currentPrice: price)
+        // Fetch real multi-source market flow in parallel
+        async let liveTradesTask = DeFiLlamaFundamentalProvider.shared.fetchBinanceWhaleTrades(for: cleanSymbol, currentPrice: price)
+        async let liveDataTask = DeFiLlamaFundamentalProvider.shared.fetchFundamentalData(for: cleanSymbol)
+        async let takerDataTask = DeFiLlamaFundamentalProvider.shared.fetch24hTakerBuyRatio(for: cleanSymbol)
+        async let topTraderTask = DeFiLlamaFundamentalProvider.shared.fetchTopTraderLongShortRatio(for: cleanSymbol)
+        async let orderbookTask = DeFiLlamaFundamentalProvider.shared.fetchBinanceOrderbookDepthRatio(for: cleanSymbol)
         
-        // Fetch Live VC Backers from DeFiLlama / CoinGecko
-        let liveData = await DeFiLlamaFundamentalProvider.shared.fetchFundamentalData(for: cleanSymbol)
+        let liveTrades = await liveTradesTask
+        let liveData = await liveDataTask
+        let takerData = await takerDataTask
+        let topLongRatio = await topTraderTask
+        let depthRatio = await orderbookTask
         
-        // 1. Try curated local profile (enriched with live trades)
+        // 1. Try curated local profile (enriched with live trades & multi-factor score)
         if var profile = buildSmartMoneyProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price) {
             if !liveTrades.isEmpty {
                 profile = SmartMoneyProfile(
@@ -49,12 +63,23 @@ public actor SmartMoneyDataProvider {
                     freshWallets: profile.freshWallets
                 )
             }
+            profileCache[cleanSymbol] = (profile, Date())
             return profile
         }
         
-        // 2. Build live profile from Fundamental Metrics and real live trade flow
+        // 2. Build live profile from Fundamental Metrics and real multi-factor market metrics
         if let live = liveData {
-            return buildLiveSmartMoneyProfile(liveData: live, symbol: cleanSymbol, currentPrice: price, liveTrades: liveTrades)
+            let profile = buildLiveSmartMoneyProfile(
+                liveData: live,
+                symbol: cleanSymbol,
+                currentPrice: price,
+                liveTrades: liveTrades,
+                takerData: takerData,
+                topLongRatio: topLongRatio,
+                depthRatio: depthRatio
+            )
+            profileCache[cleanSymbol] = (profile, Date())
+            return profile
         }
         
         throw SmartMoneyError.dataUnavailable(cleanSymbol)
@@ -64,7 +89,10 @@ public actor SmartMoneyDataProvider {
         liveData: FundamentalCoinData,
         symbol: String,
         currentPrice: Double,
-        liveTrades: [SmartMoneyDEXSwap]
+        liveTrades: [SmartMoneyDEXSwap],
+        takerData: (takerBuyRatio: Double, totalQuoteVolumeUSD: Double, netTakerVolumeUSD: Double)?,
+        topLongRatio: Double?,
+        depthRatio: Double?
     ) -> SmartMoneyProfile {
         let vcList: [VCBackerHolding]
         if !liveData.vcBackers.isEmpty {
@@ -75,19 +103,34 @@ public actor SmartMoneyDataProvider {
             ]
         }
         
-        let buyVol = liveTrades.filter { $0.type == .buy }.reduce(0.0) { $0 + $1.amountUSD }
-        let sellVol = liveTrades.filter { $0.type == .sell }.reduce(0.0) { $0 + $1.amountUSD }
-        let totalTradeVol = buyVol + sellVol
-        let buyRatio = totalTradeVol > 0 ? (buyVol / totalTradeVol) : 0.60
+        // Compute multi-factor quant score
+        let takerRatio = takerData?.takerBuyRatio ?? 0.50
+        let takerScore = max(15.0, min(95.0, 50.0 + (takerRatio - 0.50) * 300.0))
         
-        let score = Int(round(buyRatio * 100.0))
-        let signalLabel: String
-        if score >= 70 {
-            signalLabel = "Tích Lũy Mạnh (Accumulation)"
-        } else if score >= 50 {
-            signalLabel = "Dòng Tiền Cân Bằng (Neutral Inflows)"
+        let finalScore: Int
+        if let topLong = topLongRatio, let depth = depthRatio {
+            let topScore = max(15.0, min(95.0, topLong * 100.0))
+            let depthScore = max(15.0, min(95.0, depth * 100.0))
+            finalScore = Int(round(0.45 * takerScore + 0.35 * topScore + 0.20 * depthScore))
+        } else if let depth = depthRatio {
+            let depthScore = max(15.0, min(95.0, depth * 100.0))
+            finalScore = Int(round(0.65 * takerScore + 0.35 * depthScore))
         } else {
-            signalLabel = "Áp Lực Chốt Lời (Distribution)"
+            finalScore = Int(round(takerScore))
+        }
+        let clampedScore = max(15, min(95, finalScore))
+        
+        let signalLabel: String
+        if clampedScore >= 75 {
+            signalLabel = "Cá Voi Mua Tích Lũy Ròng (Whale Net Accumulation)"
+        } else if clampedScore >= 60 {
+            signalLabel = "Dòng Tiền Đón Đầu Xu Hướng (Bullish Inflows)"
+        } else if clampedScore >= 45 {
+            signalLabel = "Dòng Tiền Cân Bằng (Neutral Inflows)"
+        } else if clampedScore >= 30 {
+            signalLabel = "Áp Lực Chốt Lời / Phân Phối (Distribution)"
+        } else {
+            signalLabel = "Áp Lực Xả Hàng Mạnh (Heavy Selloff)"
         }
         
         let dexLiq = DEXLiquidityMetrics(
@@ -98,13 +141,30 @@ public actor SmartMoneyDataProvider {
             volumeToLiquidityRatio: 0.40
         )
         
+        let netVolUSD = takerData?.netTakerVolumeUSD ?? {
+            let buyVol = liveTrades.filter { $0.type == .buy }.reduce(0.0) { $0 + $1.amountUSD }
+            let sellVol = liveTrades.filter { $0.type == .sell }.reduce(0.0) { $0 + $1.amountUSD }
+            return buyVol - sellVol
+        }()
+        
+        var summaryComponents: [String] = []
+        summaryComponents.append("Tỷ lệ khớp lệnh mua chủ động Taker 24h: \(String(format: "%.1f", takerRatio * 100))%")
+        if let top = topLongRatio {
+            summaryComponents.append("Top Trader Futures nắm giữ \(String(format: "%.1f", top * 100))% vị thế Long")
+        }
+        if let d = depthRatio {
+            summaryComponents.append("Sổ lệnh Spot phe Mua chiếm \(String(format: "%.1f", d * 100))%")
+        }
+        let quantDetail = summaryComponents.joined(separator: ", ")
+        let analysisSummary = "Dữ liệu dòng tiền định lượng: \(quantDetail). Các tổ chức đối tác (\(vcList.prefix(2).map { $0.fundName }.joined(separator: ", "))) tiếp tục duy trì vị thế chiến lược."
+        
         let sentiment = SmartMoneySentimentSignal(
-            score: max(20, min(95, score)),
+            score: clampedScore,
             signalLabel: signalLabel,
-            netDEXVolume24hUSD: max(100_000, buyVol - sellVol),
+            netDEXVolume24hUSD: netVolUSD,
             smartMoneyHoldersCount: 380,
             smartHoldersChange7d: 12,
-            analysisSummary: "Dữ liệu lệnh lớn thời gian thực từ sàn giao dịch: Tỷ lệ lệnh mua chủ động đạt \(String(format: "%.1f", buyRatio * 100))% với các quỹ đầu tư (\(vcList.prefix(2).map { $0.fundName }.joined(separator: ", "))) nắm giữ vị thế chiến lược."
+            analysisSummary: analysisSummary
         )
         
         return SmartMoneyProfile(

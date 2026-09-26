@@ -18,6 +18,8 @@ public actor DerivativesDataProvider {
     public static let shared = DerivativesDataProvider()
     
     private let candleProvider: BinanceCandleProvider
+    private var profileCache: [String: (profile: DerivativesProfile, timestamp: Date)] = [:]
+    private let cacheTTL: TimeInterval = 300 // 5 minutes cache for stability
     private let supportedDerivativesAssets: Set<String> = [
         "BTC", "ETH", "SOL", "BNB", "SUI", "ARB", "OP", "LINK", "AVAX", "DOGE"
     ]
@@ -30,15 +32,25 @@ public actor DerivativesDataProvider {
         let cleanSymbol = symbol.uppercased()
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
         
+        // 0. Check session cache first
+        if let cached = profileCache[cleanSymbol], Date().timeIntervalSince(cached.timestamp) < cacheTTL {
+            return cached.profile
+        }
+        
         guard let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
             throw DerivativesError.tickerUnavailable(cleanSymbol)
         }
         
-        // 1. Fetch Live Futures Metrics (OI, Funding Rate, Global & Top Long/Short Ratios, History) from Binance Futures
-        let liveFutures = await DeFiLlamaFundamentalProvider.shared.fetchBinanceFuturesMetrics(for: cleanSymbol)
+        // 1. Fetch Live Futures Metrics & Verified Multi-Exchange Funding Rates in parallel
+        async let liveFuturesTask = DeFiLlamaFundamentalProvider.shared.fetchBinanceFuturesMetrics(for: cleanSymbol)
+        async let liveWallsTask = DeFiLlamaFundamentalProvider.shared.fetchBinanceOrderbookWalls(for: cleanSymbol, currentPrice: price)
+        async let bybitRateTask = DeFiLlamaFundamentalProvider.shared.fetchBybitFundingRate(for: cleanSymbol)
+        async let okxRateTask = DeFiLlamaFundamentalProvider.shared.fetchOKXFundingRate(for: baseAsset)
         
-        // 2. Fetch Live Spot/Futures Orderbook Depth Walls from Binance
-        let liveWalls = await DeFiLlamaFundamentalProvider.shared.fetchBinanceOrderbookWalls(for: cleanSymbol, currentPrice: price)
+        let liveFutures = await liveFuturesTask
+        let liveWalls = await liveWallsTask
+        let bybitRate = await bybitRateTask
+        let okxRate = await okxRateTask
         let orderbookWalls = !liveWalls.isEmpty ? liveWalls : generateOrderbookWalls(currentPrice: price, baseAsset: baseAsset)
         
         if let futures = liveFutures {
@@ -58,29 +70,37 @@ public actor DerivativesDataProvider {
                 clusters: clusters
             )
             
-            let fundingRates: [FundingRateItem] = [
+            var fundingRates: [FundingRateItem] = [
                 FundingRateItem(
-                    exchangeName: "Binance Futures (Live)",
+                    exchangeName: "Binance Futures (Verified)",
                     currentRate8hPercent: futures.currentFunding8h,
                     annualizedRatePercent: futures.currentFunding8h * 3 * 365,
                     nextFundingCountdownMinutes: 245,
                     sentiment: futures.currentFunding8h > 0.03 ? .overheatedLong : (futures.currentFunding8h < -0.01 ? .negativeShort : .healthyLong)
-                ),
-                FundingRateItem(
-                    exchangeName: "Bybit Derivatives",
-                    currentRate8hPercent: futures.currentFunding8h + 0.001,
-                    annualizedRatePercent: (futures.currentFunding8h + 0.001) * 3 * 365,
-                    nextFundingCountdownMinutes: 245,
-                    sentiment: futures.currentFunding8h > 0.03 ? .overheatedLong : .healthyLong
-                ),
-                FundingRateItem(
-                    exchangeName: "OKX Perpetual",
-                    currentRate8hPercent: max(0.001, futures.currentFunding8h - 0.0005),
-                    annualizedRatePercent: max(0.001, futures.currentFunding8h - 0.0005) * 3 * 365,
-                    nextFundingCountdownMinutes: 245,
-                    sentiment: .healthyLong
                 )
             ]
+            if let bRate = bybitRate {
+                fundingRates.append(
+                    FundingRateItem(
+                        exchangeName: "Bybit Linear (Verified)",
+                        currentRate8hPercent: bRate,
+                        annualizedRatePercent: bRate * 3 * 365,
+                        nextFundingCountdownMinutes: 245,
+                        sentiment: bRate > 0.03 ? .overheatedLong : (bRate < -0.01 ? .negativeShort : .healthyLong)
+                    )
+                )
+            }
+            if let oRate = okxRate {
+                fundingRates.append(
+                    FundingRateItem(
+                        exchangeName: "OKX Perpetual (Verified)",
+                        currentRate8hPercent: oRate,
+                        annualizedRatePercent: oRate * 3 * 365,
+                        nextFundingCountdownMinutes: 245,
+                        sentiment: oRate > 0.03 ? .overheatedLong : (oRate < -0.01 ? .negativeShort : .healthyLong)
+                    )
+                )
+            }
             
             let openInterest = OpenInterestMetrics(
                 totalOpenInterestUSD: futures.openInterestUSD,
@@ -103,7 +123,7 @@ public actor DerivativesDataProvider {
                 timeframe: .hours24
             )
             
-            return DerivativesProfile(
+            let profile = DerivativesProfile(
                 symbol: cleanSymbol,
                 baseAsset: baseAsset,
                 heatmapData: heatmapData,
@@ -115,6 +135,8 @@ public actor DerivativesDataProvider {
                 openInterest: openInterest,
                 orderbookWalls: orderbookWalls
             )
+            profileCache[cleanSymbol] = (profile, Date())
+            return profile
         }
         
         // 3. If curated asset, build fallback with live walls
@@ -167,7 +189,6 @@ public actor DerivativesDataProvider {
             clusters: clusters
         )
         
-        let rateVal = funding8h / 100.0 // Decimal form
         let fundingRates: [FundingRateItem] = [
             FundingRateItem(
                 exchangeName: "Binance Futures (Live)",
@@ -453,17 +474,22 @@ public actor DerivativesDataProvider {
                     close: c.close
                 ))
             }
+        } else if !historicalCandles.isEmpty {
+            for c in historicalCandles {
+                candlePoints.append(LiquidationCandlePoint(
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(c.openTime) / 1000.0),
+                    open: c.open,
+                    high: c.high,
+                    low: c.low,
+                    close: c.close
+                ))
+            }
         } else {
-            var prevClose = currentPrice * 0.985
             for i in (0..<count).reversed() {
                 let t = now.addingTimeInterval(-Double(i) * intervalSec)
-                let noise = sin(Double(i) * 0.4) * 0.008 + cos(Double(i) * 0.2) * 0.005
-                let open = prevClose
-                let close = (i == 0) ? currentPrice : open * (1.0 + noise)
-                let high = max(open, close) * (1.0 + abs(noise) * 0.5)
-                let low = min(open, close) * (1.0 - abs(noise) * 0.5)
-                candlePoints.append(LiquidationCandlePoint(timestamp: t, open: open, high: high, low: low, close: close))
-                prevClose = close
+                let factor = 1.0 - (Double(i) / Double(count)) * 0.01
+                let cPrice = currentPrice * factor
+                candlePoints.append(LiquidationCandlePoint(timestamp: t, open: cPrice * 0.999, high: cPrice * 1.002, low: cPrice * 0.998, close: cPrice))
             }
         }
         

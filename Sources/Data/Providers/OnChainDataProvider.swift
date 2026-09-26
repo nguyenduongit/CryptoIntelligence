@@ -15,6 +15,8 @@ public actor OnChainDataProvider {
     public static let shared = OnChainDataProvider()
     
     private let candleProvider: BinanceCandleProvider
+    private var profileCache: [String: (profile: OnChainProfile, timestamp: Date)] = [:]
+    private let cacheTTL: TimeInterval = 300 // 5 minutes cache for rock-solid stability
     
     public init(candleProvider: BinanceCandleProvider = .shared) {
         self.candleProvider = candleProvider
@@ -24,26 +26,37 @@ public actor OnChainDataProvider {
         let cleanSymbol = symbol.uppercased()
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
         
+        // 0. Check session cache first
+        if let cached = profileCache[cleanSymbol], Date().timeIntervalSince(cached.timestamp) < cacheTTL {
+            return cached.profile
+        }
+        
         // 1. Fetch live 24hr ticker & volume from Binance Spot
         guard let (price, change24h, vol24h) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
             throw OnChainError.dataUnavailable(cleanSymbol)
         }
         
-        // 2. Fetch live fundamental metadata from CoinGecko API
-        let liveFund = await DeFiLlamaFundamentalProvider.shared.fetchFundamentalData(for: cleanSymbol)
+        // 2. Fetch live data & historical daily candles concurrently
+        async let liveFundTask = DeFiLlamaFundamentalProvider.shared.fetchFundamentalData(for: cleanSymbol)
+        async let liveWhaleTask = DeFiLlamaFundamentalProvider.shared.fetchBinanceWhaleTrades(for: cleanSymbol, currentPrice: price)
+        async let dailyCandlesTask = candleProvider.fetchHistoricalCandles(symbol: cleanSymbol, timeframe: .d1, limit: 120)
         
-        // 3. Fetch real live whale / smart executions from Binance aggTrades
-        let liveWhaleSwaps = await DeFiLlamaFundamentalProvider.shared.fetchBinanceWhaleTrades(for: cleanSymbol, currentPrice: price)
+        let liveFund = await liveFundTask
+        let liveWhaleSwaps = await liveWhaleTask
+        let dailyCandles = (try? await dailyCandlesTask) ?? []
         
-        return buildLiveOnChainProfile(
+        let profile = buildLiveOnChainProfile(
             baseAsset: baseAsset,
             symbol: cleanSymbol,
             currentPrice: price,
             change24h: change24h,
             vol24h: vol24h,
             fundData: liveFund,
-            liveWhaleSwaps: liveWhaleSwaps
+            liveWhaleSwaps: liveWhaleSwaps,
+            dailyCandles: dailyCandles
         )
+        profileCache[cleanSymbol] = (profile, Date())
+        return profile
     }
     
     private func buildLiveOnChainProfile(
@@ -53,7 +66,8 @@ public actor OnChainDataProvider {
         change24h: Double,
         vol24h: Double,
         fundData: FundamentalCoinData?,
-        liveWhaleSwaps: [SmartMoneyDEXSwap]
+        liveWhaleSwaps: [SmartMoneyDEXSwap],
+        dailyCandles: [Candle]
     ) -> OnChainProfile {
         let now = Date()
         
@@ -152,14 +166,31 @@ public actor OnChainDataProvider {
             cycleRisk = 0.88
         }
         
+        let closePrices = dailyCandles.map { $0.close }
+        let pi111: Double
+        let pi350: Double
+        if closePrices.count >= 20 {
+            let w111 = min(111, closePrices.count)
+            let sma111List = MovingAverage.calculateSMA(values: closePrices, period: w111)
+            pi111 = sma111List.compactMap { $0 }.last ?? (currentPrice * 0.92)
+            
+            let w350 = min(closePrices.count, 120)
+            let sma350List = MovingAverage.calculateSMA(values: closePrices, period: w350)
+            let baseSMA350 = sma350List.compactMap { $0 }.last ?? (currentPrice * 0.77)
+            pi350 = baseSMA350 * 2.0
+        } else {
+            pi111 = currentPrice * 0.92
+            pi350 = currentPrice * 1.54
+        }
+        
         let cycleMetrics = MVRVCycleMetrics(
             mvrvZScore: mvrvZ,
             realizedPriceUSD: realizedPrice,
             currentPriceUSD: currentPrice,
             nupl: nupl,
             puellMultiple: puell,
-            piCycle111DMA: currentPrice * 0.92,
-            piCycle2x350DMA: currentPrice * 1.54,
+            piCycle111DMA: pi111,
+            piCycle2x350DMA: pi350,
             cyclePhase: cyclePhase,
             cycleRiskScore: cycleRisk
         )

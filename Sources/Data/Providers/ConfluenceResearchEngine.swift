@@ -19,6 +19,8 @@ public actor ConfluenceResearchEngine {
     private let tokenomicsProvider: TokenomicsDataProvider
     private let macroProvider: GlobalMacroDataProvider
     private let smartMoneyProvider: SmartMoneyDataProvider
+    private var reportCache: [String: (report: ConfluenceResearchReport, timestamp: Date)] = [:]
+    private let reportCacheTTL: TimeInterval = 300 // 5 minutes cache for rock-solid stability
     
     public init(
         candleProvider: BinanceCandleProvider = .shared,
@@ -37,6 +39,11 @@ public actor ConfluenceResearchEngine {
     public func generateResearchReport(for symbol: String) async throws -> ConfluenceResearchReport {
         let cleanSymbol = symbol.uppercased()
         let baseAsset = cleanSymbol.replacingOccurrences(of: "USDT", with: "")
+        
+        // 0. Check session cache (prevents score variation & delivers instant UI response)
+        if let cached = reportCache[cleanSymbol], Date().timeIntervalSince(cached.timestamp) < reportCacheTTL {
+            return cached.report
+        }
         
         // 1. Fetch live market price, 24h performance & real candle history
         guard let (price, change, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
@@ -98,7 +105,7 @@ public actor ConfluenceResearchEngine {
         // Catalysts & Risks
         let (catalysts, risks, thesis) = buildThesisAndFactors(baseAsset: baseAsset, score: overallScore, recommendation: recommendation)
         
-        return ConfluenceResearchReport(
+        let report = ConfluenceResearchReport(
             symbol: cleanSymbol,
             baseAsset: baseAsset,
             currentPriceUSD: currentPrice,
@@ -111,6 +118,8 @@ public actor ConfluenceResearchEngine {
             keyCatalysts: catalysts,
             keyRisks: risks
         )
+        reportCache[cleanSymbol] = (report, Date())
+        return report
     }
     
     // MARK: - Pillar Evaluators

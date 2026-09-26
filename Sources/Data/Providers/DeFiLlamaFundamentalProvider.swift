@@ -488,5 +488,129 @@ public actor DeFiLlamaFundamentalProvider {
         
         return result
     }
+    
+    // MARK: - Binance 24h Taker Buy Ratio (Robust Volume Profile)
+    public func fetch24hTakerBuyRatio(for symbol: String) async -> (takerBuyRatio: Double, totalQuoteVolumeUSD: Double, netTakerVolumeUSD: Double)? {
+        let cleanSymbol = symbol.uppercased()
+        guard let url = URL(string: "https://api.binance.com/api/v3/klines?symbol=\(cleanSymbol)&interval=1d&limit=2") else {
+            return nil
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 4.0
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[Any]] else {
+            return nil
+        }
+        
+        var totalQuote = 0.0
+        var totalTakerBuyQuote = 0.0
+        for candle in array {
+            if candle.count >= 11,
+               let qStr = candle[7] as? String, let q = Double(qStr),
+               let tbStr = candle[10] as? String, let tb = Double(tbStr) {
+                totalQuote += q
+                totalTakerBuyQuote += tb
+            }
+        }
+        guard totalQuote > 0 else { return nil }
+        let ratio = totalTakerBuyQuote / totalQuote
+        let netTakerUSD = totalTakerBuyQuote - (totalQuote - totalTakerBuyQuote)
+        return (ratio, totalQuote, netTakerUSD)
+    }
+    
+    // MARK: - Binance Futures Top Trader Long/Short Ratio
+    public func fetchTopTraderLongShortRatio(for symbol: String) async -> Double? {
+        let cleanSymbol = symbol.uppercased()
+        guard let url = URL(string: "https://fapi.binance.com/futures/data/topLongShortPositionRatio?symbol=\(cleanSymbol)&period=1d&limit=1") else {
+            return nil
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 3.5
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+              let first = array.first,
+              let longStr = first["longAccount"] as? String,
+              let longRatio = Double(longStr) else {
+            return nil
+        }
+        return longRatio
+    }
+    
+    // MARK: - Binance Spot Orderbook Depth Ratio
+    public func fetchBinanceOrderbookDepthRatio(for symbol: String) async -> Double? {
+        let cleanSymbol = symbol.uppercased()
+        guard let url = URL(string: "https://api.binance.com/api/v3/depth?symbol=\(cleanSymbol)&limit=20") else {
+            return nil
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 3.5
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let bids = dict["bids"] as? [[String]],
+              let asks = dict["asks"] as? [[String]] else {
+            return nil
+        }
+        
+        var totalBidUSD = 0.0
+        for b in bids {
+            if b.count >= 2, let p = Double(b[0]), let q = Double(b[1]) {
+                totalBidUSD += p * q
+            }
+        }
+        var totalAskUSD = 0.0
+        for a in asks {
+            if a.count >= 2, let p = Double(a[0]), let q = Double(a[1]) {
+                totalAskUSD += p * q
+            }
+        }
+        
+        let totalDepth = totalBidUSD + totalAskUSD
+        guard totalDepth > 0 else { return nil }
+        return totalBidUSD / totalDepth
+    }
+    
+    // MARK: - Bybit Linear Verified Funding Rate (8h %)
+    public func fetchBybitFundingRate(for symbol: String) async -> Double? {
+        let cleanSymbol = symbol.uppercased()
+        guard let url = URL(string: "https://api.bybit.com/v5/market/tickers?category=linear&symbol=\(cleanSymbol)") else {
+            return nil
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 3.5
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let result = json["result"] as? [String: Any],
+              let list = result["list"] as? [[String: Any]],
+              let first = list.first,
+              let rateStr = first["fundingRate"] as? String,
+              let rate = Double(rateStr) else {
+            return nil
+        }
+        return rate * 100.0 // Convert decimal to percentage
+    }
+    
+    // MARK: - OKX Perpetual Verified Funding Rate (8h %)
+    public func fetchOKXFundingRate(for baseAsset: String) async -> Double? {
+        let cleanBase = baseAsset.uppercased().replacingOccurrences(of: "USDT", with: "")
+        guard let url = URL(string: "https://www.okx.com/api/v5/public/funding-rate?instId=\(cleanBase)-USDT-SWAP") else {
+            return nil
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 3.5
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataList = json["data"] as? [[String: Any]],
+              let first = dataList.first,
+              let rateStr = first["fundingRate"] as? String,
+              let rate = Double(rateStr) else {
+            return nil
+        }
+        return rate * 100.0 // Convert decimal to percentage
+    }
 }
 

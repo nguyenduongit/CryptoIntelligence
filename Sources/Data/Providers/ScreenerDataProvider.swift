@@ -31,15 +31,17 @@ public actor ScreenerDataProvider {
             let score = min(98, max(75, 80 + Int(t.priceChangePercent)))
             let triggerP = t.price * (1.0 - (t.priceChangePercent / 100.0) * 0.4)
             
-            let cat: SignalCategory = idx % 2 == 0 ? .trendBreakout : .momentumRSI
+            // True technical condition: Breakout if price is within 1.5% of 24h high, else Momentum
+            let isBreakout = t.price >= (t.highPrice * 0.985)
+            let cat: SignalCategory = isBreakout ? .trendBreakout : .momentumRSI
             let title: String
             let reason: String
             if cat == .trendBreakout {
-                title = "Breakout Cản Đỉnh (+ \(String(format: "%.1f%%", t.priceChangePercent)))"
-                reason = "Giá bứt phá cản kỹ thuật ngắn hạn với xung lực tăng mạnh và khối lượng mua chủ động áp đảo trên Binance Spot."
+                title = "Breakout Cản Đỉnh 24h (+ \(String(format: "%.1f%%", t.priceChangePercent)))"
+                reason = "Giá áp sát đỉnh cao nhất 24h (\(Formatters.formatPrice(t.highPrice))) với xung lực tăng mạnh và khối lượng mua áp đảo."
             } else {
-                title = "Momentum RSI Tăng Tốc (+ \(String(format: "%.1f%%", t.priceChangePercent)))"
-                reason = "Chỉ số sức mạnh RSI bứt phá vào vùng sóng tăng mạnh mẽ, dòng tiền tiếp tục gia tăng vị thế gom hàng."
+                title = "Xung Lực Momentum Tăng Tốc (+ \(String(format: "%.1f%%", t.priceChangePercent)))"
+                reason = "Đà tăng giá duy trì ổn định với \(t.tradesCount) lượt khớp lệnh, dòng tiền tiếp tục gia tăng vị thế gom hàng."
             }
             
             signals.append(
@@ -70,9 +72,14 @@ public actor ScreenerDataProvider {
             let score = min(95, max(82, 85 + idx * 2))
             let triggerP = t.price * (t.priceChangePercent >= 0 ? 0.96 : 1.04)
             
-            let cat: SignalCategory = idx % 2 == 0 ? .volumeSpike : .onChainWhale
-            let title = cat == .volumeSpike ? "Volume Đột Biến (\(Formatters.formatVolume(t.quoteVolume)) USD)" : "Smart Money Gom Ròng (\(Formatters.formatVolume(t.quoteVolume)) USD)"
-            let reason = "Khối lượng giao dịch 24h thuộc top đầu thị trường, ghi nhận dòng lệnh thanh khoản lớn khớp liên tục."
+            // True market condition: Whale if average trade size is high (> $1,500), else general Volume Spike
+            let avgTradeUSD = t.quoteVolume / max(1.0, Double(t.tradesCount))
+            let isWhaleFlow = avgTradeUSD >= 1_500.0
+            let cat: SignalCategory = isWhaleFlow ? .onChainWhale : .volumeSpike
+            let title = cat == .onChainWhale ? "Cá Voi Lệnh Lớn (\(Formatters.formatVolume(t.quoteVolume)) USD)" : "Volume Đột Biến (\(Formatters.formatVolume(t.quoteVolume)) USD)"
+            let reason = cat == .onChainWhale ?
+                "Quy mô lệnh khớp trung bình cao bất thường ($\(Formatters.formatPrice(avgTradeUSD))/giao dịch), dấu hiệu tổ chức gom lệnh trực tiếp." :
+                "Khối lượng giao dịch 24h thuộc top đầu thị trường với \(t.tradesCount) lượt giao dịch khớp liên tục."
             
             signals.append(
                 MarketSignalItem(
@@ -103,9 +110,13 @@ public actor ScreenerDataProvider {
             let score = min(95, max(75, 80 + Int(abs(t.priceChangePercent))))
             let triggerP = t.price * (1.0 + (abs(t.priceChangePercent) / 100.0) * 0.5)
             
-            let cat: SignalCategory = idx % 2 == 0 ? .derivativesSqueeze : .volatilitySqueeze
-            let title = cat == .derivativesSqueeze ? "Áp Lực Bán Đột Biến (\(String(format: "%.1f%%", t.priceChangePercent)))" : "Phá Vỡ Hỗ Trợ Kỹ Thuật (\(String(format: "%.1f%%", t.priceChangePercent)))"
-            let reason = "Phe bán chiếm ưu thế khiến giá thủng các mốc hỗ trợ ngắn hạn, áp lực cắt lỗ lan rộng trên các sàn giao dịch."
+            // True condition: Volatility squeeze if resting near 24h low, else derivatives short squeeze risk
+            let isNearLow = t.price <= (t.lowPrice * 1.015)
+            let cat: SignalCategory = isNearLow ? .volatilitySqueeze : .derivativesSqueeze
+            let title = cat == .volatilitySqueeze ? "Thủng Hỗ Trợ Đáy 24h (\(String(format: "%.1f%%", t.priceChangePercent)))" : "Áp Lực Bán Đột Biến (\(String(format: "%.1f%%", t.priceChangePercent)))"
+            let reason = cat == .volatilitySqueeze ?
+                "Giá chạm sát đáy 24h (\(Formatters.formatPrice(t.lowPrice))), áp lực thanh lý và cắt lỗ lệnh mua ngắn hạn tăng vọt." :
+                "Phe bán chiếm ưu thế tuyệt đối khiến thị giá giảm sâu, áp lực xả hàng lan rộng trên thị trường."
             
             signals.append(
                 MarketSignalItem(
