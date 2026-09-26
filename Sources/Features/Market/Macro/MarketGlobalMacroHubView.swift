@@ -34,38 +34,7 @@ public struct MarketGlobalMacroHubView: View {
                         .stroke(AppTheme.darkBorder, lineWidth: 1)
                 )
                 
-                // 2. Section Selector Bar
-                HStack(spacing: 6) {
-                    ForEach(GlobalMacroSection.allCases) { sec in
-                        let isSelected = (viewModel.selectedGlobalMacroSection == sec)
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                viewModel.selectedGlobalMacroSection = sec
-                            }
-                        }) {
-                            HStack(spacing: 5) {
-                                Image(systemName: sec.iconName)
-                                    .font(.system(size: 11))
-                                Text(sec.rawValue)
-                                    .font(.system(size: 12, weight: isSelected ? .bold : .medium))
-                            }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5.5)
-                            .background(isSelected ? AppTheme.accentBlue : AppTheme.darkCard)
-                            .foregroundColor(isSelected ? .white : .white.opacity(0.7))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(isSelected ? AppTheme.accentBlue : AppTheme.darkBorder, lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    
-                    Spacer()
-                }
-                
-                // 3. Top Macro Ticker Ribbon
+                // 2. Top Macro Ticker Ribbon
                 macroTickerRibbon
                 
                 // 4. Macro Risk-On / Risk-Off Sentiment Gauge

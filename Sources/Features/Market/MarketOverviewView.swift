@@ -17,8 +17,8 @@ public struct MarketOverviewView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // 1. Top Sub-header & Subtab Switcher Bar
-            marketToolbar
+            // 1. Top Subtabs Toolbar (Dynamic based on selected sidebar mode)
+            marketSubtabsToolbar
             
             // 2. Error Banner (if any)
             if let err = viewModel.errorMessage {
@@ -41,7 +41,7 @@ public struct MarketOverviewView: View {
                 .background(AppTheme.warningYellow.opacity(0.15))
             }
             
-            // 3. Main View Mode Content (Full Height, Uncluttered)
+            // 3. Main View Mode Content
             Group {
                 switch viewModel.selectedViewMode {
                 case .valuation:
@@ -68,6 +68,7 @@ public struct MarketOverviewView: View {
                         topGainers: viewModel.topGainers,
                         topLosers: viewModel.topLosers,
                         topVolumes: viewModel.topVolumes,
+                        selectedCategory: viewModel.selectedMoversCategory,
                         onSelectSymbol: { sym in
                             navigateToCoin(symbol: sym)
                         }
@@ -75,7 +76,8 @@ public struct MarketOverviewView: View {
                 case .screener:
                     MarketScreenerMainView(
                         router: router,
-                        selectedSymbol: $selectedSymbol
+                        selectedSymbol: $selectedSymbol,
+                        selectedPreset: viewModel.selectedScreenerPreset
                     )
                 }
             }
@@ -89,53 +91,34 @@ public struct MarketOverviewView: View {
         }
     }
     
+    // MARK: - Dynamic Subtabs Toolbar
     @ViewBuilder
-    private var marketToolbar: some View {
+    private var marketSubtabsToolbar: some View {
         HStack(spacing: 12) {
-            // MARK: - Top-Bar Segmented View Modes Switcher
-            HStack(spacing: 4) {
-                ForEach(MarketViewMode.allCases) { mode in
-                    let isSelected = (viewModel.selectedViewMode == mode)
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            viewModel.selectedViewMode = mode
-                        }
-                    }) {
-                        HStack(spacing: 5) {
-                            Image(systemName: mode.iconName)
-                                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                                .foregroundColor(isSelected ? AppTheme.accentBlue : .white.opacity(0.6))
-                            
-                            Text(mode.rawValue)
-                                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            isSelected ? AppTheme.accentBlue.opacity(0.18) : Color.clear
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(isSelected ? AppTheme.accentBlue.opacity(0.6) : Color.clear, lineWidth: 1)
-                        )
+            // Mode-specific Subtabs
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    switch viewModel.selectedViewMode {
+                    case .valuation:
+                        valuationSubtabs
+                    case .globalMacro:
+                        globalMacroSubtabs
+                    case .heatmap:
+                        heatmapSubtabs
+                    case .sectors:
+                        sectorsSubtabs
+                    case .movers:
+                        moversSubtabs
+                    case .screener:
+                        screenerSubtabs
                     }
-                    .buttonStyle(.plain)
                 }
             }
-            .padding(2)
-            .background(AppTheme.darkCard)
-            .clipShape(RoundedRectangle(cornerRadius: 7))
-            .overlay(
-                RoundedRectangle(cornerRadius: 7)
-                    .stroke(AppTheme.darkBorder, lineWidth: 1)
-            )
             
             Spacer()
             
-            // Refresh & Time status
-            HStack(spacing: 8) {
+            // Right-side Status & Actions
+            HStack(spacing: 10) {
                 if let last = viewModel.lastRefreshedAt {
                     Text("Cập nhật: \(formatTime(last))")
                         .font(.system(size: 10, design: .monospaced))
@@ -162,6 +145,197 @@ public struct MarketOverviewView: View {
             Rectangle().fill(AppTheme.darkBorder).frame(height: 1),
             alignment: .bottom
         )
+    }
+    
+    // MARK: - Subtab Groups per Mode
+    
+    // 1. Valuation Subtabs (Tổng quan vs Biểu đồ)
+    @ViewBuilder
+    private var valuationSubtabs: some View {
+        ForEach(MarketValuationSection.allCases) { sec in
+            let isSelected = (viewModel.selectedValuationSection == sec)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.selectedValuationSection = sec
+                }
+            }) {
+                HStack(spacing: 5) {
+                    Image(systemName: sec.iconName)
+                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                    Text(sec.rawValue == "Tổng quan" ? "Tổng Quan Vốn Hóa & Tỷ Trọng" : "Biểu Đồ Nến K-Line Chỉ Số")
+                        .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
+                }
+                .padding(.horizontal, 11)
+                .padding(.vertical, 5.5)
+                .background(isSelected ? AppTheme.cyan.opacity(0.2) : AppTheme.darkCard)
+                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isSelected ? AppTheme.cyan.opacity(0.6) : AppTheme.darkBorder, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    // 2. Global Macro Subtabs (6 sections)
+    @ViewBuilder
+    private var globalMacroSubtabs: some View {
+        ForEach(GlobalMacroSection.allCases) { sec in
+            let isSelected = (viewModel.selectedGlobalMacroSection == sec)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.selectedGlobalMacroSection = sec
+                }
+            }) {
+                HStack(spacing: 5) {
+                    Image(systemName: sec.iconName)
+                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                    Text(sec.rawValue)
+                        .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5.5)
+                .background(isSelected ? AppTheme.accentBlue.opacity(0.2) : AppTheme.darkCard)
+                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isSelected ? AppTheme.accentBlue.opacity(0.6) : AppTheme.darkBorder, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    // 3. Heatmap Subtabs (Sector Filter Pills)
+    @ViewBuilder
+    private var heatmapSubtabs: some View {
+        ForEach(CryptoSector.allCases) { sector in
+            let isSelected = (viewModel.selectedSector == sector)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.selectedSector = sector
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: sector.iconName)
+                        .font(.system(size: 10))
+                    Text(sector.rawValue)
+                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(isSelected ? Color.purple.opacity(0.25) : AppTheme.darkCard)
+                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isSelected ? Color.purple.opacity(0.7) : AppTheme.darkBorder, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    // 4. Sector Flow Subtabs (Sort options)
+    @ViewBuilder
+    private var sectorsSubtabs: some View {
+        ForEach(MarketSortOption.allCases) { sort in
+            let isSelected = (viewModel.sortBy == sort)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.sortBy = sort
+                }
+            }) {
+                HStack(spacing: 4) {
+                    Image(systemName: sortIcon(sort))
+                        .font(.system(size: 10))
+                    Text(sort.rawValue)
+                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                }
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(isSelected ? AppTheme.orange.opacity(0.22) : AppTheme.darkCard)
+                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isSelected ? AppTheme.orange.opacity(0.6) : AppTheme.darkBorder, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    // 5. Movers Subtabs (All, Gainers, Losers, Volume)
+    @ViewBuilder
+    private var moversSubtabs: some View {
+        ForEach(MoversCategorySelection.allCases) { cat in
+            let isSelected = (viewModel.selectedMoversCategory == cat)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.selectedMoversCategory = cat
+                }
+            }) {
+                HStack(spacing: 5) {
+                    Image(systemName: cat.iconName)
+                        .font(.system(size: 10.5))
+                    Text(cat.rawValue)
+                        .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5.5)
+                .background(isSelected ? AppTheme.upGreen.opacity(0.2) : AppTheme.darkCard)
+                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isSelected ? AppTheme.upGreen.opacity(0.6) : AppTheme.darkBorder, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    // 6. Screener Subtabs (Preset Signals)
+    @ViewBuilder
+    private var screenerSubtabs: some View {
+        ForEach(ScreenerPresetSelection.allCases) { preset in
+            let isSelected = (viewModel.selectedScreenerPreset == preset)
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.selectedScreenerPreset = preset
+                }
+            }) {
+                HStack(spacing: 5) {
+                    Image(systemName: preset.iconName)
+                        .font(.system(size: 10.5))
+                    Text(preset.rawValue)
+                        .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5.5)
+                .background(isSelected ? Color.yellow.opacity(0.2) : AppTheme.darkCard)
+                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(isSelected ? Color.yellow.opacity(0.6) : AppTheme.darkBorder, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    
+    private func sortIcon(_ sort: MarketSortOption) -> String {
+        switch sort {
+        case .volume24h: return "flame.fill"
+        case .changeDesc: return "arrow.up.right"
+        case .changeAsc: return "arrow.down.right"
+        case .price: return "dollarsign.circle"
+        }
     }
     
     private func formatTime(_ date: Date) -> String {

@@ -3,15 +3,18 @@ import SwiftUI
 public struct MarketScreenerMainView: View {
     @Bindable var router: NavigationRouter
     @Binding var selectedSymbol: String
+    public var selectedPreset: ScreenerPresetSelection = .all
     @State private var viewModel: MarketScreenerViewModel
     
     public init(
         router: NavigationRouter,
         selectedSymbol: Binding<String>,
+        selectedPreset: ScreenerPresetSelection = .all,
         viewModel: MarketScreenerViewModel = MarketScreenerViewModel()
     ) {
         self.router = router
         self._selectedSymbol = selectedSymbol
+        self.selectedPreset = selectedPreset
         _viewModel = State(initialValue: viewModel)
     }
     

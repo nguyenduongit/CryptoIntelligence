@@ -4,49 +4,78 @@ public struct MarketMoversView: View {
     public let topGainers: [MarketTicker24h]
     public let topLosers: [MarketTicker24h]
     public let topVolumes: [MarketTicker24h]
+    public var selectedCategory: MoversCategorySelection = .all
     public let onSelectSymbol: (String) -> Void
     
     public init(
         topGainers: [MarketTicker24h],
         topLosers: [MarketTicker24h],
         topVolumes: [MarketTicker24h],
+        selectedCategory: MoversCategorySelection = .all,
         onSelectSymbol: @escaping (String) -> Void
     ) {
         self.topGainers = topGainers
         self.topLosers = topLosers
         self.topVolumes = topVolumes
+        self.selectedCategory = selectedCategory
         self.onSelectSymbol = onSelectSymbol
     }
     
     public var body: some View {
         ScrollView {
-            HStack(alignment: .top, spacing: 14) {
-                // Column 1: Top Gainers
-                MoversColumnView(
-                    title: "Top Tăng Giá 24h",
-                    icon: "arrow.up.right.circle.fill",
-                    headerColor: AppTheme.upGreen,
-                    tickers: topGainers,
-                    onSelectSymbol: onSelectSymbol
-                )
-                
-                // Column 2: Top Losers
-                MoversColumnView(
-                    title: "Top Giảm Giá 24h",
-                    icon: "arrow.down.right.circle.fill",
-                    headerColor: AppTheme.downRed,
-                    tickers: topLosers,
-                    onSelectSymbol: onSelectSymbol
-                )
-                
-                // Column 3: Top Volume
-                MoversColumnView(
-                    title: "Khối Lượng Cao Nhất",
-                    icon: "flame.fill",
-                    headerColor: AppTheme.orange,
-                    tickers: topVolumes,
-                    onSelectSymbol: onSelectSymbol
-                )
+            Group {
+                switch selectedCategory {
+                case .all:
+                    HStack(alignment: .top, spacing: 14) {
+                        MoversColumnView(
+                            title: "Top Tăng Giá 24h",
+                            icon: "arrow.up.right.circle.fill",
+                            headerColor: AppTheme.upGreen,
+                            tickers: topGainers,
+                            onSelectSymbol: onSelectSymbol
+                        )
+                        
+                        MoversColumnView(
+                            title: "Top Giảm Giá 24h",
+                            icon: "arrow.down.right.circle.fill",
+                            headerColor: AppTheme.downRed,
+                            tickers: topLosers,
+                            onSelectSymbol: onSelectSymbol
+                        )
+                        
+                        MoversColumnView(
+                            title: "Khối Lượng Cao Nhất",
+                            icon: "flame.fill",
+                            headerColor: AppTheme.orange,
+                            tickers: topVolumes,
+                            onSelectSymbol: onSelectSymbol
+                        )
+                    }
+                case .gainers:
+                    MoversColumnView(
+                        title: "Bảng Xếp Hạng Top 15 Tăng Giá 24h",
+                        icon: "arrow.up.right.circle.fill",
+                        headerColor: AppTheme.upGreen,
+                        tickers: topGainers,
+                        onSelectSymbol: onSelectSymbol
+                    )
+                case .losers:
+                    MoversColumnView(
+                        title: "Bảng Xếp Hạng Top 15 Giảm Giá 24h",
+                        icon: "arrow.down.right.circle.fill",
+                        headerColor: AppTheme.downRed,
+                        tickers: topLosers,
+                        onSelectSymbol: onSelectSymbol
+                    )
+                case .volume:
+                    MoversColumnView(
+                        title: "Bảng Xếp Hạng Top 15 Khối Lượng 24h Cao Nhất",
+                        icon: "flame.fill",
+                        headerColor: AppTheme.orange,
+                        tickers: topVolumes,
+                        onSelectSymbol: onSelectSymbol
+                    )
+                }
             }
             .padding(14)
         }
