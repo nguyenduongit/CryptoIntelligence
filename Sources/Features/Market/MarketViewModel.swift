@@ -111,6 +111,36 @@ public enum ScreenerPresetSelection: String, CaseIterable, Identifiable, Sendabl
     }
 }
 
+public enum MarketHeatmapDisplayMode: String, CaseIterable, Identifiable, Sendable {
+    case bubbles = "Bong Bóng"
+    case grid = "Lưới Ô"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .bubbles: return "circle.hexagongrid.fill"
+        case .grid: return "square.grid.3x3.fill"
+        }
+    }
+}
+
+public enum BubbleSizingMetric: String, CaseIterable, Identifiable, Sendable {
+    case marketCap = "Vốn Hóa"
+    case volume24h = "Volume 24h"
+    case priceChange = "% Biến Động"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .marketCap: return "chart.pie.fill"
+        case .volume24h: return "flame.fill"
+        case .priceChange: return "percent"
+        }
+    }
+}
+
 public enum MarketSortOption: String, CaseIterable, Identifiable {
     case volume24h = "Khối lượng 24h"
     case changeDesc = "Tăng mạnh nhất"
@@ -135,6 +165,11 @@ public final class MarketViewModel: @unchecked Sendable {
     public var selectedHeatmapSection: MarketHeatmapSection = .heatmap
     public var selectedMoversCategory: MoversCategorySelection = .all
     public var selectedScreenerPreset: ScreenerPresetSelection = .all
+    
+    // Heatmap & Bubbles Configuration
+    public var heatmapDisplayMode: MarketHeatmapDisplayMode = .bubbles
+    public var bubbleSizingMetric: BubbleSizingMetric = .marketCap
+    public var bubbleCountLimit: Int = 100 // 50, 100, 150, 0 (all)
     public var isHeatmapSizingByVolume: Bool = false
     
     public var tickers: [MarketTicker24h] = []
@@ -205,6 +240,39 @@ public final class MarketViewModel: @unchecked Sendable {
             list.sort { $0.quoteVolume > $1.quoteVolume }
         } else {
             list.sort { $0.estimatedMarketCap > $1.estimatedMarketCap }
+        }
+        
+        return list
+    }
+    
+    public var filteredBubbleTickers: [MarketTicker24h] {
+        var list = tickers
+        
+        // Filter by Sector
+        if selectedSector != .all {
+            list = list.filter { $0.sector == selectedSector }
+        }
+        
+        // Filter by Search
+        if !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+            let query = searchQuery.trimmingCharacters(in: .whitespaces).uppercased()
+            list = list.filter {
+                $0.symbol.uppercased().contains(query) || $0.baseAsset.uppercased().contains(query)
+            }
+        }
+        
+        // Sort according to bubbleSizingMetric
+        switch bubbleSizingMetric {
+        case .marketCap:
+            list.sort { $0.estimatedMarketCap > $1.estimatedMarketCap }
+        case .volume24h:
+            list.sort { $0.quoteVolume > $1.quoteVolume }
+        case .priceChange:
+            list.sort { abs($0.priceChangePercent) > abs($1.priceChangePercent) }
+        }
+        
+        if bubbleCountLimit > 0 && list.count > bubbleCountLimit {
+            list = Array(list.prefix(bubbleCountLimit))
         }
         
         return list

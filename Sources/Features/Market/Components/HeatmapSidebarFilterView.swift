@@ -17,10 +17,18 @@ public struct HeatmapSidebarFilterView: View {
                     // 1. Search Box
                     searchBox
                     
-                    // 2. Sizing Mode (Market Cap vs Volume)
-                    sizingModeSection
+                    // 2. Display Mode Selector (Bong bóng vs Lưới ô)
+                    displayModeSection
                     
-                    // 3. Sector Categories Filter
+                    // 3. Sizing Metric Mode
+                    sizingMetricSection
+                    
+                    // 4. Number of Bubbles Limit
+                    if viewModel.heatmapDisplayMode == .bubbles {
+                        bubbleCountSection
+                    }
+                    
+                    // 5. Sector Categories Filter
                     sectorCategorySection
                 }
                 .padding(.horizontal, 10)
@@ -40,10 +48,10 @@ public struct HeatmapSidebarFilterView: View {
     private var headerView: some View {
         HStack {
             HStack(spacing: 7) {
-                Image(systemName: "square.grid.3x3.fill")
+                Image(systemName: viewModel.heatmapDisplayMode.iconName)
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(Color.purple)
-                Text("BỘ LỌC BẢN ĐỒ")
+                Text(viewModel.heatmapDisplayMode == .bubbles ? "BỘ LỌC BUBBLES" : "BỘ LỌC BẢN ĐỒ")
                     .font(.system(size: 12.5, weight: .bold))
                     .foregroundColor(.white)
             }
@@ -98,60 +106,180 @@ public struct HeatmapSidebarFilterView: View {
         )
     }
     
-    // MARK: - Sizing Mode
-    private var sizingModeSection: some View {
+    // MARK: - Display Mode Section
+    private var displayModeSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("KÍCH THƯỚC Ô HEATMAP")
+            Text("CHẾ ĐỘ HIỂN THỊ")
                 .font(.system(size: 9.5, weight: .bold))
                 .foregroundColor(.white.opacity(0.4))
                 .padding(.horizontal, 4)
             
             HStack(spacing: 4) {
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        viewModel.isHeatmapSizingByVolume = false
+                ForEach(MarketHeatmapDisplayMode.allCases) { mode in
+                    let isSelected = (viewModel.heatmapDisplayMode == mode)
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            viewModel.heatmapDisplayMode = mode
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: mode.iconName)
+                                .font(.system(size: 10))
+                            Text(mode.rawValue)
+                                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5.5)
+                        .background(isSelected ? Color.purple.opacity(0.25) : Color.clear)
+                        .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(isSelected ? Color.purple.opacity(0.6) : Color.clear, lineWidth: 1)
+                        )
                     }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chart.pie.fill")
-                            .font(.system(size: 10))
-                        Text("Vốn Hóa")
-                            .font(.system(size: 11, weight: !viewModel.isHeatmapSizingByVolume ? .bold : .medium))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 5.5)
-                    .background(!viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.25) : Color.clear)
-                    .foregroundColor(!viewModel.isHeatmapSizingByVolume ? .white : .white.opacity(0.6))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(!viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.6) : Color.clear, lineWidth: 1)
-                    )
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                
-                Button(action: {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                        viewModel.isHeatmapSizingByVolume = true
+            }
+            .padding(2)
+            .background(AppTheme.darkCard)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6).stroke(AppTheme.darkBorder, lineWidth: 1)
+            )
+        }
+    }
+    
+    // MARK: - Sizing Metric Mode
+    private var sizingMetricSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(viewModel.heatmapDisplayMode == .bubbles ? "KÍCH THƯỚC BONG BÓNG" : "KÍCH THƯỚC Ô LƯỚI")
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundColor(.white.opacity(0.4))
+                .padding(.horizontal, 4)
+            
+            if viewModel.heatmapDisplayMode == .bubbles {
+                HStack(spacing: 4) {
+                    ForEach(BubbleSizingMetric.allCases) { metric in
+                        let isSelected = (viewModel.bubbleSizingMetric == metric)
+                        Button(action: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                viewModel.bubbleSizingMetric = metric
+                            }
+                        }) {
+                            VStack(spacing: 3) {
+                                Image(systemName: metric.iconName)
+                                    .font(.system(size: 10))
+                                Text(metric.rawValue)
+                                    .font(.system(size: 9.5, weight: isSelected ? .bold : .medium))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 5)
+                            .background(isSelected ? AppTheme.accentBlue.opacity(0.25) : Color.clear)
+                            .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 5)
+                                    .stroke(isSelected ? AppTheme.accentBlue.opacity(0.6) : Color.clear, lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 10))
-                        Text("Volume 24h")
-                            .font(.system(size: 11, weight: viewModel.isHeatmapSizingByVolume ? .bold : .medium))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 5.5)
-                    .background(viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.25) : Color.clear)
-                    .foregroundColor(viewModel.isHeatmapSizingByVolume ? .white : .white.opacity(0.6))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.6) : Color.clear, lineWidth: 1)
-                    )
                 }
-                .buttonStyle(.plain)
+                .padding(2)
+                .background(AppTheme.darkCard)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6).stroke(AppTheme.darkBorder, lineWidth: 1)
+                )
+            } else {
+                HStack(spacing: 4) {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            viewModel.isHeatmapSizingByVolume = false
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chart.pie.fill")
+                                .font(.system(size: 10))
+                            Text("Vốn Hóa")
+                                .font(.system(size: 11, weight: !viewModel.isHeatmapSizingByVolume ? .bold : .medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5.5)
+                        .background(!viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.25) : Color.clear)
+                        .foregroundColor(!viewModel.isHeatmapSizingByVolume ? .white : .white.opacity(0.6))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(!viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.6) : Color.clear, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            viewModel.isHeatmapSizingByVolume = true
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 10))
+                            Text("Volume 24h")
+                                .font(.system(size: 11, weight: viewModel.isHeatmapSizingByVolume ? .bold : .medium))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5.5)
+                        .background(viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.25) : Color.clear)
+                        .foregroundColor(viewModel.isHeatmapSizingByVolume ? .white : .white.opacity(0.6))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.6) : Color.clear, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(2)
+                .background(AppTheme.darkCard)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6).stroke(AppTheme.darkBorder, lineWidth: 1)
+                )
+            }
+        }
+    }
+    
+    // MARK: - Bubble Count Limit
+    private var bubbleCountSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("SỐ LƯỢNG BONG BÓNG")
+                .font(.system(size: 9.5, weight: .bold))
+                .foregroundColor(.white.opacity(0.4))
+                .padding(.horizontal, 4)
+            
+            HStack(spacing: 4) {
+                ForEach([50, 100, 150, 0], id: \.self) { count in
+                    let isSelected = (viewModel.bubbleCountLimit == count)
+                    Button(action: {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                            viewModel.bubbleCountLimit = count
+                        }
+                    }) {
+                        Text(count == 0 ? "Tất cả" : "Top \(count)")
+                            .font(.system(size: 10, weight: isSelected ? .bold : .medium))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4.5)
+                            .background(isSelected ? Color.purple.opacity(0.25) : Color.clear)
+                            .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .stroke(isSelected ? Color.purple.opacity(0.6) : Color.clear, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
             }
             .padding(2)
             .background(AppTheme.darkCard)
