@@ -9,6 +9,11 @@ public struct CryptoBubblesView: View {
     @State private var hoveredSymbol: String? = nil
     @State private var draggingSymbol: String? = nil
     
+    // Zoom & Pan state
+    @State private var zoomScale: CGFloat = 1.0
+    @State private var panOffset: CGSize = .zero
+    @State private var dragStartOffset: CGSize = .zero
+    
     public init(
         tickers: [MarketTicker24h],
         sizingMetric: BubbleSizingMetric = .marketCap,
@@ -24,23 +29,34 @@ public struct CryptoBubblesView: View {
             let size = proxy.size
             
             TimelineView(.animation) { timeline in
-                Canvas { context, canvasSize in
-                    // Background deep dark grid / cosmic glow
-                }
-                .background(
+                ZStack {
+                    // Deep Dark Space Background with subtle vignette
                     RadialGradient(
                         colors: [
-                            Color(red: 0.07, green: 0.09, blue: 0.13),
+                            Color(red: 0.08, green: 0.10, blue: 0.14),
                             Color(red: 0.03, green: 0.04, blue: 0.06)
                         ],
                         center: .center,
-                        startRadius: 50,
-                        endRadius: max(size.width, size.height) * 0.7
+                        startRadius: 80,
+                        endRadius: max(size.width, size.height) * 0.75
                     )
-                )
-                .overlay(
+                    .contentShape(Rectangle())
+                    .gesture(
+                        // Pan gesture on canvas background
+                        DragGesture()
+                            .onChanged { value in
+                                panOffset = CGSize(
+                                    width: dragStartOffset.width + value.translation.width,
+                                    height: dragStartOffset.height + value.translation.height
+                                )
+                            }
+                            .onEnded { _ in
+                                dragStartOffset = panOffset
+                            }
+                    )
+                    
+                    // Bubble Simulation Canvas with Zoom & Pan transform
                     ZStack {
-                        // Render interactive bubbles
                         ForEach(engine.bubbles) { node in
                             let isHovered = (hoveredSymbol == node.symbol)
                             let isDragging = (draggingSymbol == node.symbol)
@@ -59,13 +75,18 @@ public struct CryptoBubblesView: View {
                                 DragGesture(minimumDistance: 2)
                                     .onChanged { value in
                                         draggingSymbol = node.symbol
-                                        engine.updateDrag(symbol: node.symbol, to: value.location)
+                                        // Adjust position taking zoom and pan into account
+                                        let adjustedPoint = CGPoint(
+                                            x: (value.location.x - panOffset.width) / zoomScale,
+                                            y: (value.location.y - panOffset.height) / zoomScale
+                                        )
+                                        engine.updateDrag(symbol: node.symbol, to: adjustedPoint)
                                     }
                                     .onEnded { value in
                                         draggingSymbol = nil
                                         engine.endDrag(symbol: node.symbol, releaseVelocity: CGPoint(
-                                            x: value.velocity.width,
-                                            y: value.velocity.height
+                                            x: value.velocity.width / zoomScale,
+                                            y: value.velocity.height / zoomScale
                                         ))
                                     }
                             )
@@ -78,7 +99,96 @@ public struct CryptoBubblesView: View {
                             }
                         }
                     }
-                )
+                    .scaleEffect(zoomScale)
+                    .offset(panOffset)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.8), value: zoomScale)
+                    
+                    // Floating Controls Overlay in Bottom Right
+                    VStack(alignment: .trailing, spacing: 8) {
+                        Spacer()
+                        
+                        HStack(spacing: 8) {
+                            Spacer()
+                            
+                            // Zoom & Re-pack Toolbar
+                            HStack(spacing: 6) {
+                                // Zoom Out
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        zoomScale = max(0.6, zoomScale - 0.15)
+                                    }
+                                }) {
+                                    Image(systemName: "minus.magnifyingglass")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .frame(width: 26, height: 26)
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Thu nhỏ")
+                                
+                                // Zoom Label / Reset
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                        zoomScale = 1.0
+                                        panOffset = .zero
+                                        dragStartOffset = .zero
+                                    }
+                                }) {
+                                    Text("\(Int(zoomScale * 100))%")
+                                        .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                                        .foregroundColor(Color.cyan)
+                                        .padding(.horizontal, 6)
+                                        .frame(height: 26)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Đặt lại kích thước chuẩn (100%)")
+                                
+                                // Zoom In
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+                                        zoomScale = min(2.2, zoomScale + 0.15)
+                                    }
+                                }) {
+                                    Image(systemName: "plus.magnifyingglass")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .frame(width: 26, height: 26)
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .buttonStyle(.plain)
+                                .help("Phóng to")
+                                
+                                Divider()
+                                    .frame(height: 14)
+                                    .background(Color.white.opacity(0.2))
+                                
+                                // Re-pack / Shake
+                                Button(action: {
+                                    engine.repack()
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.triangle.2.circlepath")
+                                            .font(.system(size: 10, weight: .semibold))
+                                        Text("Xếp lại")
+                                            .font(.system(size: 10.5, weight: .medium))
+                                    }
+                                    .foregroundColor(.white.opacity(0.85))
+                                    .padding(.horizontal, 8)
+                                    .frame(height: 26)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Tái sắp xếp và làm mới vị trí các bong bóng")
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(AppTheme.darkCard.opacity(0.9))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.darkBorder, lineWidth: 1))
+                            .shadow(color: Color.black.opacity(0.4), radius: 6, x: 0, y: 3)
+                        }
+                        .padding(.trailing, 14)
+                        .padding(.bottom, 12)
+                    }
+                }
                 .onChange(of: timeline.date) { _, _ in
                     engine.step(dt: 0.016)
                 }
@@ -111,8 +221,8 @@ private struct BubbleItemView: View {
     var body: some View {
         let diameter = node.radius * 2
         let rimColor = node.isBullish
-            ? Color(red: 0.0, green: 0.95, blue: 0.45) // Neon Emerald Green
-            : Color(red: 1.0, green: 0.20, blue: 0.30) // Neon Crimson Red
+            ? Color(red: 0.0, green: 0.96, blue: 0.46) // Neon Emerald Green
+            : Color(red: 1.0, green: 0.20, blue: 0.32) // Neon Crimson Red
         
         Button(action: onSelect) {
             ZStack {
@@ -120,20 +230,20 @@ private struct BubbleItemView: View {
                 Circle()
                     .fill(rimColor.opacity(isHovered ? 0.45 : 0.22))
                     .frame(width: diameter + 8, height: diameter + 8)
-                    .blur(radius: isHovered ? 8 : 4)
+                    .blur(radius: isHovered ? 9 : 4)
                 
                 // 2. Bubble Body with Dark Glass Radial Gradient
                 Circle()
                     .fill(
                         RadialGradient(
                             colors: node.isBullish ? [
-                                Color(red: 0.08, green: 0.32, blue: 0.16),
-                                Color(red: 0.02, green: 0.12, blue: 0.06),
-                                Color(red: 0.01, green: 0.06, blue: 0.03)
+                                Color(red: 0.09, green: 0.34, blue: 0.17),
+                                Color(red: 0.03, green: 0.14, blue: 0.07),
+                                Color(red: 0.01, green: 0.07, blue: 0.03)
                             ] : [
-                                Color(red: 0.36, green: 0.08, blue: 0.12),
-                                Color(red: 0.16, green: 0.03, blue: 0.05),
-                                Color(red: 0.07, green: 0.01, blue: 0.02)
+                                Color(red: 0.38, green: 0.08, blue: 0.12),
+                                Color(red: 0.18, green: 0.03, blue: 0.05),
+                                Color(red: 0.08, green: 0.01, blue: 0.02)
                             ],
                             center: .center,
                             startRadius: 0,
@@ -147,7 +257,7 @@ private struct BubbleItemView: View {
                                 LinearGradient(
                                     colors: [
                                         rimColor,
-                                        rimColor.opacity(0.8),
+                                        rimColor.opacity(0.85),
                                         rimColor.opacity(0.4)
                                     ],
                                     startPoint: .topLeading,
@@ -159,11 +269,11 @@ private struct BubbleItemView: View {
                 
                 // 3. Information Content inside Bubble
                 VStack(spacing: contentSpacing) {
-                    // Mini Icon / Logo Token Initials
-                    if node.radius >= 32 {
+                    // Mini Icon / Logo Token Initial (only on medium/large bubbles)
+                    if node.radius >= 38 {
                         ZStack {
                             Circle()
-                                .fill(Color.white.opacity(0.12))
+                                .fill(Color.white.opacity(0.14))
                                 .frame(width: iconSize, height: iconSize)
                             
                             Text(String(node.baseAsset.prefix(1)))
@@ -172,29 +282,31 @@ private struct BubbleItemView: View {
                         }
                     }
                     
-                    // Token Symbol
+                    // Token Symbol (always fits, never cuts off)
                     Text(node.baseAsset)
                         .font(.system(size: symbolFontSize, weight: .black, design: .rounded))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(0.65)
                     
-                    // % Price Change
-                    Text(Formatters.formatPercentage(node.priceChangePercent))
+                    // % Price Change (clean format, never truncates with ..)
+                    Text(formattedChange)
                         .font(.system(size: percentFontSize, weight: .bold, design: .monospaced))
                         .foregroundColor(.white)
                         .lineLimit(1)
+                        .minimumScaleFactor(0.65)
                     
-                    // Secondary Metric (Vốn hóa, Volume hoặc Giá)
-                    if node.radius >= 44 {
+                    // Secondary Metric (Vốn hóa, Volume hoặc Giá - only on large bubbles)
+                    if node.radius >= 52 {
                         Text(node.formattedSubMetric(for: metric))
                             .font(.system(size: subMetricFontSize, weight: .medium, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.75))
+                            .foregroundColor(.white.opacity(0.8))
                             .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                 }
-                .padding(4)
-                .frame(width: diameter * 0.85, height: diameter * 0.85)
+                .padding(3)
+                .frame(width: diameter * 0.88, height: diameter * 0.88)
             }
             .scaleEffect(isDragging ? 1.12 : (isHovered ? 1.08 : 1.0))
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
@@ -207,24 +319,29 @@ private struct BubbleItemView: View {
     
     // MARK: - Scaled Font Sizes based on Radius
     private var symbolFontSize: CGFloat {
-        max(9.5, min(22, node.radius * 0.36))
+        max(10.0, min(24.0, node.radius * 0.38))
     }
     
     private var percentFontSize: CGFloat {
-        max(8.5, min(17, node.radius * 0.30))
+        max(9.0, min(18.0, node.radius * 0.30))
     }
     
     private var subMetricFontSize: CGFloat {
-        max(7.5, min(11, node.radius * 0.20))
+        max(8.0, min(11.5, node.radius * 0.20))
     }
     
     private var iconSize: CGFloat {
-        max(12, min(22, node.radius * 0.32))
+        max(14.0, min(24.0, node.radius * 0.32))
     }
     
     private var contentSpacing: CGFloat {
-        if node.radius > 50 { return 3.5 }
-        if node.radius > 35 { return 2.0 }
+        if node.radius > 55 { return 3.5 }
+        if node.radius > 40 { return 2.0 }
         return 1.0
+    }
+    
+    private var formattedChange: String {
+        let prefix = node.priceChangePercent > 0 ? "+" : ""
+        return String(format: "%@%.1f%%", prefix, node.priceChangePercent)
     }
 }
