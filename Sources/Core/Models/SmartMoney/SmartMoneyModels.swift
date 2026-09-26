@@ -195,6 +195,34 @@ public struct FreshWalletAlert: Identifiable, Sendable, Codable, Equatable {
     }
 }
 
+public struct WhaleTrapMetrics: Sendable, Codable, Equatable {
+    public let pumpDumpRiskLevel: String // "Thấp", "Trung bình", "Cao"
+    public let pumpDumpStatusText: String // "AN TOÀN", "CẢNH BÁO", "NGUY HIỂM"
+    public let pumpDumpDetail: String
+    public let washTradingScore: Int // 0..100
+    public let washTradingDetail: String
+    public let top10ConcentrationPercent: Double
+    public let top10Detail: String
+    
+    public init(
+        pumpDumpRiskLevel: String = "Thấp",
+        pumpDumpStatusText: String = "AN TOÀN",
+        pumpDumpDetail: String = "Biên độ giá và thanh khoản ổn định, không có dấu hiệu thao túng kéo xả bất thường.",
+        washTradingScore: Int = 15,
+        washTradingDetail: String = "Volume giao dịch thực chất (>80% tự nhiên từ nhà đầu tư thật)",
+        top10ConcentrationPercent: Double = 20.0,
+        top10Detail: String = "Phân tán lành mạnh, rủi ro cá voi độc quyền thao túng thấp"
+    ) {
+        self.pumpDumpRiskLevel = pumpDumpRiskLevel
+        self.pumpDumpStatusText = pumpDumpStatusText
+        self.pumpDumpDetail = pumpDumpDetail
+        self.washTradingScore = washTradingScore
+        self.washTradingDetail = washTradingDetail
+        self.top10ConcentrationPercent = top10ConcentrationPercent
+        self.top10Detail = top10Detail
+    }
+}
+
 public struct SmartMoneyProfile: Identifiable, Sendable, Codable, Equatable {
     public var id: String { symbol }
     public let symbol: String
@@ -205,6 +233,7 @@ public struct SmartMoneyProfile: Identifiable, Sendable, Codable, Equatable {
     public var recentDEXSwaps: [SmartMoneyDEXSwap]
     public var topWallets: [SmartMoneyWalletLeader]
     public var freshWallets: [FreshWalletAlert]
+    public var whaleTraps: WhaleTrapMetrics
     
     public init(
         symbol: String,
@@ -214,7 +243,8 @@ public struct SmartMoneyProfile: Identifiable, Sendable, Codable, Equatable {
         dexLiquidity: DEXLiquidityMetrics,
         recentDEXSwaps: [SmartMoneyDEXSwap],
         topWallets: [SmartMoneyWalletLeader] = [],
-        freshWallets: [FreshWalletAlert] = []
+        freshWallets: [FreshWalletAlert] = [],
+        whaleTraps: WhaleTrapMetrics = WhaleTrapMetrics()
     ) {
         self.symbol = symbol
         self.baseAsset = baseAsset
@@ -224,5 +254,6 @@ public struct SmartMoneyProfile: Identifiable, Sendable, Codable, Equatable {
         self.recentDEXSwaps = recentDEXSwaps
         self.topWallets = topWallets
         self.freshWallets = freshWallets
+        self.whaleTraps = whaleTraps
     }
 }

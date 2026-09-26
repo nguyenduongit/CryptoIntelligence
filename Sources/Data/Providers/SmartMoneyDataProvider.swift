@@ -31,8 +31,8 @@ public actor SmartMoneyDataProvider {
             return cached.profile
         }
         
-        // Fetch current price for accurate USD calculations
-        guard let (price, _, _) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
+        // Fetch current price & 24h ticker for accurate USD calculations
+        guard let (price, change24h, volume24h) = try? await candleProvider.fetch24hrTicker(symbol: cleanSymbol), price > 0 else {
             throw SmartMoneyError.dataUnavailable(cleanSymbol)
         }
         
@@ -49,20 +49,31 @@ public actor SmartMoneyDataProvider {
         let topLongRatio = await topTraderTask
         let depthRatio = await orderbookTask
         
-        // 1. Try curated local profile (enriched with live trades & multi-factor score)
+        let quoteVol = takerData?.totalQuoteVolumeUSD ?? (volume24h * price)
+        let whaleTraps = computeWhaleTraps(
+            baseAsset: baseAsset,
+            symbol: cleanSymbol,
+            currentPrice: price,
+            change24h: change24h,
+            quoteVolume24h: quoteVol,
+            liveData: liveData,
+            takerRatio: takerData?.takerBuyRatio ?? 0.50,
+            depthRatio: depthRatio
+        )
+        
+        // 1. Try curated local profile (enriched with live trades, multi-factor score & whale traps)
         if var profile = buildSmartMoneyProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price) {
-            if !liveTrades.isEmpty {
-                profile = SmartMoneyProfile(
-                    symbol: profile.symbol,
-                    baseAsset: profile.baseAsset,
-                    sentimentSignal: profile.sentimentSignal,
-                    vcBackers: !profile.vcBackers.isEmpty ? profile.vcBackers : (liveData?.vcBackers ?? []),
-                    dexLiquidity: profile.dexLiquidity,
-                    recentDEXSwaps: liveTrades,
-                    topWallets: profile.topWallets,
-                    freshWallets: profile.freshWallets
-                )
-            }
+            profile = SmartMoneyProfile(
+                symbol: profile.symbol,
+                baseAsset: profile.baseAsset,
+                sentimentSignal: profile.sentimentSignal,
+                vcBackers: !profile.vcBackers.isEmpty ? profile.vcBackers : (liveData?.vcBackers ?? []),
+                dexLiquidity: profile.dexLiquidity,
+                recentDEXSwaps: !liveTrades.isEmpty ? liveTrades : profile.recentDEXSwaps,
+                topWallets: profile.topWallets,
+                freshWallets: profile.freshWallets,
+                whaleTraps: whaleTraps
+            )
             profileCache[cleanSymbol] = (profile, Date())
             return profile
         }
@@ -76,7 +87,8 @@ public actor SmartMoneyDataProvider {
                 liveTrades: liveTrades,
                 takerData: takerData,
                 topLongRatio: topLongRatio,
-                depthRatio: depthRatio
+                depthRatio: depthRatio,
+                whaleTraps: whaleTraps
             )
             profileCache[cleanSymbol] = (profile, Date())
             return profile
@@ -92,7 +104,8 @@ public actor SmartMoneyDataProvider {
         liveTrades: [SmartMoneyDEXSwap],
         takerData: (takerBuyRatio: Double, totalQuoteVolumeUSD: Double, netTakerVolumeUSD: Double)?,
         topLongRatio: Double?,
-        depthRatio: Double?
+        depthRatio: Double?,
+        whaleTraps: WhaleTrapMetrics
     ) -> SmartMoneyProfile {
         let vcList: [VCBackerHolding]
         if !liveData.vcBackers.isEmpty {
@@ -173,7 +186,8 @@ public actor SmartMoneyDataProvider {
             sentimentSignal: sentiment,
             vcBackers: vcList,
             dexLiquidity: dexLiq,
-            recentDEXSwaps: liveTrades
+            recentDEXSwaps: liveTrades,
+            whaleTraps: whaleTraps
         )
     }
     
@@ -442,5 +456,125 @@ public actor SmartMoneyDataProvider {
                 timestamp: now.addingTimeInterval(-3600 * 12)
             )
         ]
+    }
+    
+    // MARK: - Dynamic Whale Traps & Wash Trading Radar Engine
+    private func computeWhaleTraps(
+        baseAsset: String,
+        symbol: String,
+        currentPrice: Double,
+        change24h: Double,
+        quoteVolume24h: Double,
+        liveData: FundamentalCoinData?,
+        takerRatio: Double,
+        depthRatio: Double?
+    ) -> WhaleTrapMetrics {
+        // 1. Top 10 Holder Concentration (% Nguồn Cung)
+        let top10: Double
+        let knownTop10Map: [String: Double] = [
+            "BTC": 5.4,
+            "ETH": 28.2,
+            "SOL": 11.8,
+            "ADA": 8.6,
+            "XRP": 42.5,
+            "AVAX": 14.2,
+            "NEAR": 19.8,
+            "SUI": 52.4,
+            "BNB": 48.0,
+            "DOGE": 44.8,
+            "LINK": 31.5,
+            "PENDLE": 38.2,
+            "ARB": 41.0,
+            "OP": 36.5,
+            "DOT": 16.4,
+            "ATOM": 18.2,
+            "TON": 58.0
+        ]
+        if let known = knownTop10Map[baseAsset] {
+            top10 = known
+        } else {
+            let mcFdv = liveData?.mcFdvRatio ?? 0.65
+            top10 = min(68.0, max(6.0, (1.0 - mcFdv) * 55.0 + 10.0))
+        }
+        
+        let top10Detail: String
+        if top10 < 15.0 {
+            top10Detail = "Mức độ phi tập trung rất cao, nguồn cung phân tán an toàn."
+        } else if top10 < 35.0 {
+            top10Detail = "Phân tán lành mạnh, rủi ro cá voi độc quyền thao túng thấp."
+        } else if top10 < 55.0 {
+            top10Detail = "Cảnh báo: Top 10 ví nắm tỷ trọng đáng kể (quỹ hoặc hợp đồng khóa)."
+        } else {
+            top10Detail = "Rủi ro tập trung cao: Cá voi nắm giữ phần lớn nguồn cung lưu thông."
+        }
+        
+        // 2. Wash Trading (Volume Ảo) Score (0..100)
+        let marketCap = liveData?.marketCapUSD ?? max(50_000_000, currentPrice * (liveData?.circulatingSupply ?? 1_000_000_000))
+        let turnover = marketCap > 0 ? (quoteVolume24h / marketCap) * 100.0 : 5.0
+        
+        var washScore: Int
+        if turnover < 4.0 {
+            washScore = max(5, Int(turnover * 2.5))
+        } else if turnover < 12.0 {
+            washScore = 10 + Int((turnover - 4.0) * 1.5)
+        } else if turnover < 30.0 {
+            washScore = 22 + Int((turnover - 12.0) * 1.2)
+        } else if turnover < 70.0 {
+            washScore = 45 + Int((turnover - 30.0) * 0.8)
+        } else {
+            washScore = min(92, 75 + Int((turnover - 70.0) * 0.3))
+        }
+        
+        let asymmetry = abs(takerRatio - 0.50)
+        if asymmetry < 0.005 && turnover > 20.0 {
+            washScore += 12
+        } else if asymmetry > 0.04 {
+            washScore = max(5, washScore - 5)
+        }
+        washScore = min(95, max(5, washScore))
+        
+        let washDetail: String
+        if washScore < 25 {
+            washDetail = "Volume giao dịch thực chất (>80% tự nhiên từ nhà đầu tư thật)"
+        } else if washScore < 50 {
+            washDetail = "Khối lượng tự nhiên kết hợp hoạt động tạo lập thanh khoản (MM)"
+        } else {
+            washDetail = "Nghi vấn bot đảo lệnh tự mua bán (wash trading) để tạo volume ảo"
+        }
+        
+        // 3. Pump & Dump Risk Detector
+        let riskLevel: String
+        let statusText: String
+        let pumpDumpDetail: String
+        let depth = depthRatio ?? 0.50
+        
+        if change24h >= 18.0 && (top10 > 40.0 || washScore > 40) {
+            riskLevel = "Cao"
+            statusText = "NGUY HIỂM"
+            pumpDumpDetail = "Khối lượng tăng nóng (\(String(format: "+%.1f%%", change24h))) khi nguồn cung tập trung cao (\(String(format: "%.1f%%", top10))), nguy cơ xả hàng chốt lời (Dump) lớn."
+        } else if change24h >= 8.0 && depth < 0.40 {
+            riskLevel = "Trung bình"
+            statusText = "CẢNH BÁO"
+            pumpDumpDetail = "Giá tăng nhanh (\(String(format: "+%.1f%%", change24h))) nhưng tường mua mỏng (\(String(format: "%.1f%%", depth * 100))%), cần đề phòng bẫy tăng giá (Bull Trap)."
+        } else if change24h <= -12.0 {
+            riskLevel = "Trung bình"
+            statusText = "CẢNH BÁO"
+            pumpDumpDetail = "Áp lực xả hàng mạnh (\(String(format: "%.1f%%", change24h))), phe bán áp đảo, rủi ro bắt đáy sớm."
+        } else {
+            riskLevel = "Thấp"
+            statusText = "AN TOÀN"
+            let sign = change24h >= 0 ? "+" : ""
+            pumpDumpDetail = "Biên độ giá (\(sign)\(String(format: "%.1f%%", change24h))) và thanh khoản ổn định, không có dấu hiệu thao túng kéo xả bất thường."
+        }
+        
+        return WhaleTrapMetrics(
+            pumpDumpRiskLevel: riskLevel,
+            pumpDumpStatusText: statusText,
+            pumpDumpDetail: pumpDumpDetail,
+            washTradingScore: washScore,
+            washTradingDetail: washDetail,
+            top10ConcentrationPercent: top10,
+            top10Detail: top10Detail
+        )
     }
 }

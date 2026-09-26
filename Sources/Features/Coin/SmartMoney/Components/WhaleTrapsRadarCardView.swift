@@ -2,9 +2,12 @@ import SwiftUI
 
 public struct WhaleTrapsRadarCardView: View {
     public let symbol: String
-    public let pumpDumpRiskLevel: String // "Thấp", "Trung bình", "Cao"
-    public let washTradingScore: Int // 0..100
-    public let top10ConcentrationPercent: Double
+    public let metrics: WhaleTrapMetrics
+    
+    public init(symbol: String, metrics: WhaleTrapMetrics) {
+        self.symbol = symbol
+        self.metrics = metrics
+    }
     
     public init(
         symbol: String,
@@ -13,15 +16,30 @@ public struct WhaleTrapsRadarCardView: View {
         top10ConcentrationPercent: Double = 18.5
     ) {
         self.symbol = symbol
-        self.pumpDumpRiskLevel = pumpDumpRiskLevel
-        self.washTradingScore = washTradingScore
-        self.top10ConcentrationPercent = top10ConcentrationPercent
+        let status = pumpDumpRiskLevel == "Thấp" ? "AN TOÀN" : (pumpDumpRiskLevel == "Cao" ? "NGUY HIỂM" : "CẢNH BÁO")
+        self.metrics = WhaleTrapMetrics(
+            pumpDumpRiskLevel: pumpDumpRiskLevel,
+            pumpDumpStatusText: status,
+            pumpDumpDetail: pumpDumpRiskLevel == "Thấp" ? "Biên độ giá và thanh khoản ổn định, không có dấu hiệu thao túng kéo xả bất thường." : "Khối lượng tăng đột biến không đi kèm dòng vốn tổ chức.",
+            washTradingScore: washTradingScore,
+            washTradingDetail: washTradingScore < 25 ? "Volume giao dịch thực chất (>80% tự nhiên)" : "Nghi vấn bot đảo lệnh tự mua bán để tạo volume ảo",
+            top10ConcentrationPercent: top10ConcentrationPercent,
+            top10Detail: top10ConcentrationPercent < 30 ? "Phân tán tốt, rủi ro thao túng thấp" : "Rủi ro cá voi độc quyền xả hàng cao"
+        )
+    }
+    
+    private var pumpDumpColor: Color {
+        switch metrics.pumpDumpRiskLevel {
+        case "Thấp": return AppTheme.upGreen
+        case "Cao": return AppTheme.downRed
+        default: return AppTheme.orange
+        }
     }
     
     private var washColor: Color {
-        if washTradingScore < 20 {
+        if metrics.washTradingScore < 25 {
             return AppTheme.upGreen
-        } else if washTradingScore < 50 {
+        } else if metrics.washTradingScore < 50 {
             return AppTheme.orange
         } else {
             return AppTheme.downRed
@@ -29,9 +47,9 @@ public struct WhaleTrapsRadarCardView: View {
     }
     
     private var concentrationColor: Color {
-        if top10ConcentrationPercent < 30.0 {
+        if metrics.top10ConcentrationPercent < 25.0 {
             return AppTheme.upGreen
-        } else if top10ConcentrationPercent < 60.0 {
+        } else if metrics.top10ConcentrationPercent < 50.0 {
             return AppTheme.orange
         } else {
             return AppTheme.downRed
@@ -60,20 +78,20 @@ public struct WhaleTrapsRadarCardView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         Image(systemName: "chart.line.flattrend.xyaxis")
-                            .foregroundColor(pumpDumpRiskLevel == "Thấp" ? AppTheme.upGreen : AppTheme.orange)
+                            .foregroundColor(pumpDumpColor)
                             .font(.system(size: 12))
                         Text("BẪY PUMP & DUMP")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.white.opacity(0.6))
                     }
                     
-                    Text(pumpDumpRiskLevel == "Thấp" ? "AN TOÀN" : "CẢNH BÁO")
+                    Text(metrics.pumpDumpStatusText)
                         .font(.system(size: 15, weight: .bold, design: .monospaced))
-                        .foregroundColor(pumpDumpRiskLevel == "Thấp" ? AppTheme.upGreen : AppTheme.orange)
+                        .foregroundColor(pumpDumpColor)
                     
-                    Text(pumpDumpRiskLevel == "Thấp" ? "Không có dấu hiệu kéo xả bất thường" : "Khối lượng tăng đột biến không đi kèm dòng vốn tổ chức")
+                    Text(metrics.pumpDumpDetail)
                         .font(.system(size: 9.5))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(.white.opacity(0.6))
                         .lineLimit(2)
                 }
                 .padding(12)
@@ -93,14 +111,14 @@ public struct WhaleTrapsRadarCardView: View {
                     }
                     
                     HStack(spacing: 4) {
-                        Text("\(washTradingScore) / 100")
+                        Text("\(metrics.washTradingScore) / 100")
                             .font(.system(size: 15, weight: .bold, design: .monospaced))
                             .foregroundColor(washColor)
                     }
                     
-                    Text(washTradingScore < 20 ? "Volume giao dịch thực chất (>80% tự nhiên)" : "Nghi vấn bot đảo lệnh tự mua bán để tạo volume ảo")
+                    Text(metrics.washTradingDetail)
                         .font(.system(size: 9.5))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(.white.opacity(0.6))
                         .lineLimit(2)
                 }
                 .padding(12)
@@ -119,13 +137,13 @@ public struct WhaleTrapsRadarCardView: View {
                             .foregroundColor(.white.opacity(0.6))
                     }
                     
-                    Text(String(format: "%.1f%% Nguồn Cung", top10ConcentrationPercent))
+                    Text(String(format: "%.1f%% Nguồn Cung", metrics.top10ConcentrationPercent))
                         .font(.system(size: 15, weight: .bold, design: .monospaced))
                         .foregroundColor(concentrationColor)
                     
-                    Text(top10ConcentrationPercent < 30 ? "Phân tán tốt, rủi ro thao túng thấp" : "Rủi ro cá voi độc quyền xả hàng cao")
+                    Text(metrics.top10Detail)
                         .font(.system(size: 9.5))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(.white.opacity(0.6))
                         .lineLimit(2)
                 }
                 .padding(12)

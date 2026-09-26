@@ -46,9 +46,7 @@ public struct SmartMoneyView: View {
                         // 1. Whale Traps Radar (Pump/Dump & Wash Trading)
                         WhaleTrapsRadarCardView(
                             symbol: symbol,
-                            pumpDumpRiskLevel: profile.sentimentSignal.score > 75 ? "Thấp" : "Trung bình",
-                            washTradingScore: max(5, min(35, 100 - profile.sentimentSignal.score)),
-                            top10ConcentrationPercent: 24.5
+                            metrics: profile.whaleTraps
                         )
                         
                         // 2. Signal Context
