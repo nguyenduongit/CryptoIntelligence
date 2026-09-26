@@ -63,39 +63,8 @@ public struct CoinDetailView: View {
                 
                 Spacer()
                 
-                // Active Coin Tier & Status Pills (or Quick Add Button if not in Watchlist)
-                if let item = activeWatchlistItem {
-                    HStack(spacing: 6) {
-                        // Tier Badge
-                        HStack(spacing: 3) {
-                            Text("Tier:")
-                                .font(.system(size: 10))
-                                .foregroundColor(.white.opacity(0.4))
-                            Text(item.tier.rawValue)
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(tierColor(for: item.tier).opacity(0.2))
-                        .foregroundColor(tierColor(for: item.tier))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                        
-                        // Status Badge
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(statusColor(for: item.status))
-                                .frame(width: 6, height: 6)
-                            Text(item.status.rawValue)
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(statusColor(for: item.status).opacity(0.18))
-                        .foregroundColor(statusColor(for: item.status))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
-                    .padding(.trailing, 4)
-                } else if let watchlistVM {
+                // Quick Add Button if not in Watchlist
+                if activeWatchlistItem == nil, let watchlistVM {
                     Button(action: {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             watchlistVM.toggleWatchlist(symbol: symbol)
@@ -164,24 +133,6 @@ public struct CoinDetailView: View {
         }
         .onChange(of: symbol) { _, newSym in
             chartViewModel.setSymbol(newSym)
-        }
-    }
-    
-    private func tierColor(for tier: CoinTier) -> Color {
-        switch tier {
-        case .core: return AppTheme.purple
-        case .narrative: return AppTheme.cyan
-        case .moonshot: return AppTheme.orange
-        case .unassigned: return .white.opacity(0.5)
-        }
-    }
-    
-    private func statusColor(for status: CoinStatus) -> Color {
-        switch status {
-        case .watching: return .white.opacity(0.6)
-        case .buyZone: return AppTheme.upGreen
-        case .holding: return AppTheme.accentBlue
-        case .ignored: return AppTheme.downRed
         }
     }
 }
