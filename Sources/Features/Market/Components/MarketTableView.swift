@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Full market listing table with responsive width and lazy rendering.
-/// Automatically stretches columns to occupy 100% of the container width.
+/// Automatically stretches columns to occupy 100% of the container width
+/// without overflowing or clipping on the left or right edges.
 public struct MarketTableView: View {
     @Bindable var viewModel: MarketViewModel
     let onSelectSymbol: (String) -> Void
@@ -20,7 +21,7 @@ public struct MarketTableView: View {
         GeometryReader { proxy in
             let columns = MarketTableColumns(totalWidth: proxy.size.width)
 
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 // ── Sticky Column Header ──────────────────────────────────────
                 MarketTableHeaderView(
                     columns: columns,
@@ -36,7 +37,7 @@ public struct MarketTableView: View {
                     emptyPlaceholder
                 } else {
                     ScrollView(.vertical, showsIndicators: true) {
-                        LazyVStack(spacing: 0, pinnedViews: []) {
+                        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
                             ForEach(Array(rows.prefix(visibleCount).enumerated()), id: \.element.id) { index, ticker in
                                 MarketTableRowView(
                                     rank: index + 1,
@@ -80,14 +81,15 @@ public struct MarketTableView: View {
                                     .padding(.vertical, 10)
                             }
                         }
-                        .frame(width: columns.totalWidth)
+                        .frame(width: columns.totalWidth, alignment: .leading)
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .onChange(of: viewModel.selectedMarketViewMode) { _, _ in visibleCount = 100 }
                     .onChange(of: viewModel.selectedSector) { _, _ in visibleCount = 100 }
                     .onChange(of: viewModel.searchQuery) { _, _ in visibleCount = 100 }
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(AppTheme.darkBackground)
         }
     }

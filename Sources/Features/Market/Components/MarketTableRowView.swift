@@ -31,50 +31,50 @@ public struct MarketTableRowView: View {
 
                 // ── Symbol + Sector ─────────────────
                 symbolCell
-                    .frame(width: columns.symbol, alignment: .leading)
                     .padding(.leading, 8)
+                    .frame(width: columns.symbol, alignment: .leading)
 
                 // ── Price ───────────────────────────
                 Text(Formatters.formatPrice(ticker.price))
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                    .frame(width: columns.price, alignment: .trailing)
                     .padding(.trailing, 8)
+                    .frame(width: columns.price, alignment: .trailing)
 
                 // ── 24h % ───────────────────────────
                 changeBadge
-                    .frame(width: columns.change24h, alignment: .trailing)
                     .padding(.trailing, 8)
+                    .frame(width: columns.change24h, alignment: .trailing)
 
                 // ── 24h High / Low ──────────────────
                 highLowCell
-                    .frame(width: columns.highLow, alignment: .trailing)
                     .padding(.trailing, 8)
+                    .frame(width: columns.highLow, alignment: .trailing)
 
                 // ── Vol 24h (USDT) ──────────────────
                 volumeCell
-                    .frame(width: columns.volume, alignment: .trailing)
                     .padding(.trailing, 8)
+                    .frame(width: columns.volume, alignment: .trailing)
 
                 // ── Market Cap ──────────────────────
                 Text(Formatters.formatMarketCap(ticker.estimatedMarketCap))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundColor(.white.opacity(0.65))
                     .lineLimit(1)
-                    .frame(width: columns.cap, alignment: .trailing)
                     .padding(.trailing, 8)
+                    .frame(width: columns.cap, alignment: .trailing)
 
                 // ── Sparkline ───────────────────────
                 SparklineView(ticker: ticker)
-                    .frame(width: max(60, columns.sparkline - 16), height: 26)
+                    .frame(width: max(36, columns.sparkline - 12), height: 26)
                     .frame(width: columns.sparkline, alignment: .center)
 
                 // ── Action / Detail ─────────────────
                 actionIcon
                     .frame(width: columns.action, alignment: .center)
             }
-            .frame(width: columns.totalWidth, height: 40)
+            .frame(width: columns.totalWidth, height: 40, alignment: .leading)
             .background(rowBg)
             .contentShape(Rectangle())
         }

@@ -56,7 +56,7 @@ public struct MarketTableHeaderView: View {
                 .foregroundColor(.white.opacity(0.45))
                 .frame(width: columns.action, alignment: .center)
         }
-        .frame(width: columns.totalWidth, height: 32)
+        .frame(width: columns.totalWidth, height: 32, alignment: .leading)
         .background(AppTheme.darkHeaderBg)
         .overlay(Rectangle().fill(AppTheme.darkBorder).frame(height: 1), alignment: .bottom)
     }
@@ -91,12 +91,11 @@ public struct MarketTableHeaderView: View {
 
                 if alignment == .leading { Spacer() }
             }
-            .frame(width: max(0, width - leadingPad - trailingPad), alignment: alignment)
             .padding(.leading, leadingPad)
             .padding(.trailing, trailingPad)
+            .frame(width: width, alignment: alignment)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(width: width, alignment: alignment)
     }
 }

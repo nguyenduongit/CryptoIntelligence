@@ -2,10 +2,10 @@ import SwiftUI
 
 /// Responsive column width calculator for the Market table.
 /// Ensures table rows and header always fill 100% of the available width,
-/// distributing space cleanly without any blank area.
+/// reserving space for the vertical scrollbar without any horizontal overflow.
 public struct MarketTableColumns: Equatable, Sendable {
-    public let rank: CGFloat = 48
-    public let action: CGFloat = 46
+    public let rank: CGFloat = 46
+    public let action: CGFloat = 40
     public let symbol: CGFloat
     public let price: CGFloat
     public let change24h: CGFloat
@@ -16,12 +16,12 @@ public struct MarketTableColumns: Equatable, Sendable {
     public let totalWidth: CGFloat
 
     public init(totalWidth: CGFloat) {
-        // Enforce sensible minimum width (800pt) so columns never compress too tightly
-        let w = max(totalWidth, 800)
+        // Reserve 16pt for macOS vertical scrollbar and edge padding
+        let w = max(totalWidth - 16, 750)
         self.totalWidth = w
 
-        // Fixed columns: rank (48) + action (46) = 94
-        let flex = w - 48 - 46
+        // Fixed columns: rank (46) + action (40) = 86
+        let flex = w - 46 - 40
 
         // Distribute proportionally across all flexible columns:
         // symbol: 20%
