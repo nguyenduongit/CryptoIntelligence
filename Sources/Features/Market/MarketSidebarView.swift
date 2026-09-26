@@ -81,15 +81,15 @@ public struct MarketSidebarView: View {
     }
 }
 
-// MARK: - 1. Valuation Dedicated Navigation Sidebar
+// MARK: - 1. Valuation Dedicated Navigation Sidebar (2 Mục Chính: Tổng Quan & Biểu Đồ)
 private struct ValuationSidebarNavigation: View {
     @Bindable var viewModel: MarketViewModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // Section 1: Views
-            VStack(alignment: .leading, spacing: 4) {
-                Text("MÀN HÌNH HIỂN THỊ")
+            // 2 Mục Chính
+            VStack(alignment: .leading, spacing: 5) {
+                Text("DANH MỤC VỐN HÓA")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white.opacity(0.4))
                     .padding(.horizontal, 8)
@@ -97,7 +97,9 @@ private struct ValuationSidebarNavigation: View {
                 ForEach(MarketValuationSection.allCases) { sec in
                     let isSelected = (viewModel.selectedValuationSection == sec)
                     Button(action: {
-                        viewModel.selectedValuationSection = sec
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            viewModel.selectedValuationSection = sec
+                        }
                     }) {
                         HStack(spacing: 8) {
                             Image(systemName: sec.iconName)
@@ -106,7 +108,7 @@ private struct ValuationSidebarNavigation: View {
                                 .frame(width: 16)
                             
                             Text(sec.rawValue)
-                                .font(.system(size: 12, weight: isSelected ? .bold : .medium))
+                                .font(.system(size: 12.5, weight: isSelected ? .bold : .medium))
                             
                             Spacer()
                             
@@ -117,7 +119,7 @@ private struct ValuationSidebarNavigation: View {
                             }
                         }
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
+                        .padding(.vertical, 8)
                         .background(isSelected ? AppTheme.cyan.opacity(0.15) : Color.clear)
                         .foregroundColor(isSelected ? .white : .white.opacity(0.75))
                         .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -126,80 +128,81 @@ private struct ValuationSidebarNavigation: View {
                 }
             }
             
-            Divider().background(AppTheme.darkBorder).padding(.horizontal, 8)
-            
-            // Section 2: Macro Indices Quick Select
-            VStack(alignment: .leading, spacing: 4) {
-                Text("CHỌN NHANH CHỈ SỐ K-LINE")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white.opacity(0.4))
-                    .padding(.horizontal, 8)
+            // Nếu đang ở mục Biểu Đồ -> Hiển thị các tuỳ chọn chọn chỉ số và khung nến
+            if viewModel.selectedValuationSection == .kline {
+                Divider().background(AppTheme.darkBorder).padding(.horizontal, 8)
                 
-                ForEach(MacroIndexType.allCases) { idx in
-                    let isSelected = (viewModel.selectedMacroIndex == idx)
-                    Button(action: {
-                        viewModel.selectedMacroIndex = idx
-                        viewModel.selectedValuationSection = .kline
-                    }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: idx.iconName)
-                                .font(.system(size: 11))
-                                .foregroundColor(isSelected ? AppTheme.accentBlue : .white.opacity(0.5))
-                                .frame(width: 16)
-                            
-                            Text(idx.rawValue)
-                                .font(.system(size: 11.5, weight: isSelected ? .bold : .medium, design: .monospaced))
-                            
-                            Spacer()
-                            
-                            if isSelected {
-                                Text("Đang xem")
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .foregroundColor(AppTheme.accentBlue)
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(isSelected ? AppTheme.accentBlue.opacity(0.18) : Color.clear)
-                        .foregroundColor(isSelected ? .white : .white.opacity(0.7))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            
-            Divider().background(AppTheme.darkBorder).padding(.horizontal, 8)
-            
-            // Section 3: Timeframe Quick Select
-            VStack(alignment: .leading, spacing: 6) {
-                Text("KHUNG THỜI GIAN NẾN")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white.opacity(0.4))
-                    .padding(.horizontal, 8)
-                
-                HStack(spacing: 4) {
-                    ForEach(["1h", "4h", "1d", "1w"], id: \.self) { tf in
-                        let isSelected = (viewModel.selectedKLineTimeframe.lowercased() == tf)
+                // Chọn Chỉ Số
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("CHỈ SỐ NẾN K-LINE")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white.opacity(0.4))
+                        .padding(.horizontal, 8)
+                    
+                    ForEach(MacroIndexType.allCases) { idx in
+                        let isSelected = (viewModel.selectedMacroIndex == idx)
                         Button(action: {
-                            viewModel.selectedKLineTimeframe = tf
-                            viewModel.selectedValuationSection = .kline
+                            viewModel.selectedMacroIndex = idx
                         }) {
-                            Text(tf.uppercased())
-                                .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .monospaced))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 6)
-                                .background(isSelected ? AppTheme.accentBlue : AppTheme.darkCard)
-                                .foregroundColor(isSelected ? .white : .white.opacity(0.6))
-                                .clipShape(RoundedRectangle(cornerRadius: 5))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .stroke(isSelected ? AppTheme.accentBlue : AppTheme.darkBorder, lineWidth: 1)
-                                )
+                            HStack(spacing: 8) {
+                                Image(systemName: idx.iconName)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(isSelected ? AppTheme.accentBlue : .white.opacity(0.5))
+                                    .frame(width: 16)
+                                
+                                Text(idx.rawValue)
+                                    .font(.system(size: 11.5, weight: isSelected ? .bold : .medium, design: .monospaced))
+                                
+                                Spacer()
+                                
+                                if isSelected {
+                                    Text("Đang xem")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundColor(AppTheme.accentBlue)
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5.5)
+                            .background(isSelected ? AppTheme.accentBlue.opacity(0.18) : Color.clear)
+                            .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 8)
+                
+                Divider().background(AppTheme.darkBorder).padding(.horizontal, 8)
+                
+                // Khung Thời Gian
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("KHUNG THỜI GIAN NẾN")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white.opacity(0.4))
+                        .padding(.horizontal, 8)
+                    
+                    HStack(spacing: 4) {
+                        ForEach(["1h", "4h", "1d", "1w"], id: \.self) { tf in
+                            let isSelected = (viewModel.selectedKLineTimeframe.lowercased() == tf)
+                            Button(action: {
+                                viewModel.selectedKLineTimeframe = tf
+                            }) {
+                                Text(tf.uppercased())
+                                    .font(.system(size: 11, weight: isSelected ? .bold : .medium, design: .monospaced))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 6)
+                                    .background(isSelected ? AppTheme.accentBlue : AppTheme.darkCard)
+                                    .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+                                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 5)
+                                            .stroke(isSelected ? AppTheme.accentBlue : AppTheme.darkBorder, lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                }
             }
         }
     }

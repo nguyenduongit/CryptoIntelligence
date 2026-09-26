@@ -117,7 +117,7 @@ public struct MacroIndexKLineChartView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             
-            // 3. Candlestick Canvas Area
+            // 3. Candlestick Canvas Area (Flexible Height)
             ZStack {
                 if isLoading && candles.isEmpty {
                     ProgressView()
@@ -197,7 +197,7 @@ public struct MacroIndexKLineChartView: View {
                         .foregroundColor(.white.opacity(0.5))
                 }
             }
-            .frame(height: 320)
+            .frame(minHeight: 480, maxHeight: 560)
             .background(Color.black.opacity(0.2))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(AppTheme.darkBorder, lineWidth: 1))

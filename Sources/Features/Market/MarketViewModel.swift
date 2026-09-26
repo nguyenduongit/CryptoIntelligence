@@ -24,8 +24,8 @@ public enum MarketViewMode: String, CaseIterable, Identifiable, Sendable {
 }
 
 public enum MarketValuationSection: String, CaseIterable, Identifiable, Sendable {
-    case overview = "Tổng Quan & Tương Quan"
-    case kline = "Biểu Đồ K-Line"
+    case overview = "Tổng quan"
+    case kline = "Biểu đồ"
     
     public var id: String { rawValue }
     

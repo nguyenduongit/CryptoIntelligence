@@ -7,11 +7,6 @@ public struct MarketValuationHubView: View {
     @State private var seasonReport: MarketSeasonReport? = nil
     @State private var isLoading: Bool = false
     
-    private let sections: [SubtabSectionItem] = [
-        SubtabSectionItem(id: MarketValuationSection.overview.rawValue, title: "Tổng Quan & Tương Quan", iconName: "chart.pie.fill"),
-        SubtabSectionItem(id: MarketValuationSection.kline.rawValue, title: "Biểu Đồ K-Line Chỉ Số", iconName: "chart.line.uptrend.xyaxis")
-    ]
-    
     public init(viewModel: MarketViewModel) {
         self.viewModel = viewModel
     }
@@ -43,38 +38,7 @@ public struct MarketValuationHubView: View {
                         .stroke(AppTheme.darkBorder, lineWidth: 1)
                 )
                 
-                // Section Picker
-                HStack(spacing: 6) {
-                    ForEach(MarketValuationSection.allCases) { sec in
-                        let isSelected = (viewModel.selectedValuationSection == sec)
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                viewModel.selectedValuationSection = sec
-                            }
-                        }) {
-                            HStack(spacing: 5) {
-                                Image(systemName: sec.iconName)
-                                    .font(.system(size: 11))
-                                Text(sec.rawValue)
-                                    .font(.system(size: 12, weight: isSelected ? .bold : .medium))
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(isSelected ? AppTheme.accentBlue : AppTheme.darkCard)
-                            .foregroundColor(isSelected ? .white : .white.opacity(0.7))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(isSelected ? AppTheme.accentBlue : AppTheme.darkBorder, lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    
-                    Spacer()
-                }
-                
-                // Main Content
+                // Dynamic Main Content based on Sidebar navigation
                 if isLoading && snapshots.isEmpty {
                     VStack(spacing: 12) {
                         ProgressView().controlSize(.large)
@@ -95,10 +59,6 @@ public struct MarketValuationHubView: View {
                             selectedIndex: $viewModel.selectedMacroIndex,
                             selectedTimeframe: $viewModel.selectedKLineTimeframe
                         )
-                        
-                        if let report = seasonReport {
-                            MacroValuationCorrelationView(snapshots: snapshots, seasonReport: report)
-                        }
                     }
                 }
             }

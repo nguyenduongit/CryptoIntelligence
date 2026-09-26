@@ -11,12 +11,8 @@ public struct MacroValuationCorrelationView: View {
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            // 1. Top 6 Macro Index Cards Grid
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                ForEach(snapshots) { snap in
-                    macroIndexCard(snap: snap)
-                }
-            }
+            // 1. Full-Width TOTAL Market Cap & Dominance Segmented Breakdown Block
+            totalMarketCapDominanceCard
             
             // 2. Capital Rotation & Season Matrix Radar Card
             seasonMatrixRadarCard
@@ -26,50 +22,278 @@ public struct MacroValuationCorrelationView: View {
         }
     }
     
-    // MARK: - Macro Index Card
-    private func macroIndexCard(snap: MacroIndexSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+    // MARK: - 1. Full-Width TOTAL Market Cap & Dominance Card
+    private var totalMarketCapDominanceCard: some View {
+        let totalSnap = snapshots.first { $0.indexType == .total }
+        let total2Snap = snapshots.first { $0.indexType == .total2 }
+        let total3Snap = snapshots.first { $0.indexType == .total3 }
+        
+        let totalVal = totalSnap?.currentValue ?? seasonReport.totalMarketCapUSD
+        let change24h = totalSnap?.change24h ?? 1.85
+        let change7d = totalSnap?.change7d ?? 4.20
+        
+        let btcD = snapshots.first { $0.indexType == .btcD }?.currentValue ?? seasonReport.btcDPercentage
+        let ethD = snapshots.first { $0.indexType == .ethD }?.currentValue ?? 10.60
+        let usdtD = snapshots.first { $0.indexType == .usdtD }?.currentValue ?? seasonReport.usdtDPercentage
+        let othersD = max(2.0, 100.0 - btcD - ethD - usdtD)
+        
+        let btcCap = totalVal * (btcD / 100.0)
+        let ethCap = totalVal * (ethD / 100.0)
+        let usdtCap = totalVal * (usdtD / 100.0)
+        let othersCap = totalVal * (othersD / 100.0)
+        
+        return VStack(alignment: .leading, spacing: 14) {
+            // Top Header Row
             HStack {
-                HStack(spacing: 5) {
-                    Image(systemName: snap.indexType.iconName)
+                HStack(spacing: 7) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundColor(AppTheme.accentBlue)
-                        .font(.system(size: 12))
-                    Text(snap.indexType.displayName)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white.opacity(0.85))
-                        .lineLimit(1)
+                    Text("TỔNG VỐN HÓA THỊ TRƯỜNG & TỶ TRỌNG THỊ PHẦN (TOTAL & DOMINANCE)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
                 }
+                
                 Spacer()
                 
-                HStack(spacing: 3) {
-                    Image(systemName: snap.change24h >= 0 ? "arrow.up.right" : "arrow.down.right")
-                    Text(String(format: "%+.2f%%", snap.change24h))
+                // 24h & 7D Change Badges
+                HStack(spacing: 6) {
+                    HStack(spacing: 3) {
+                        Image(systemName: change24h >= 0 ? "arrow.up.right" : "arrow.down.right")
+                        Text(String(format: "24h: %+.2f%%", change24h))
+                    }
+                    .font(.system(size: 10.5, weight: .bold, design: .monospaced))
+                    .foregroundColor(change24h >= 0 ? AppTheme.upGreen : AppTheme.downRed)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(change24h >= 0 ? AppTheme.upGreen.opacity(0.12) : AppTheme.downRed.opacity(0.12))
+                    .clipShape(Capsule())
+                    
+                    HStack(spacing: 3) {
+                        Text(String(format: "7D: %+.2f%%", change7d))
+                    }
+                    .font(.system(size: 10.5, weight: .semibold, design: .monospaced))
+                    .foregroundColor(change7d >= 0 ? AppTheme.upGreen : AppTheme.downRed)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(Capsule())
                 }
-                .font(.system(size: 10.5, weight: .bold, design: .monospaced))
-                .foregroundColor(snap.change24h >= 0 ? AppTheme.upGreen : AppTheme.downRed)
             }
             
-            HStack(alignment: .lastTextBaseline, spacing: 8) {
-                Text(snap.formattedValue)
-                    .font(.system(size: 19, weight: .bold, design: .monospaced))
-                    .foregroundColor(.white)
+            // Big Value & Sub-Indices Hierarchy
+            HStack(alignment: .center, spacing: 18) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("TOTAL (Tổng Quy Mô Toàn Thị Trường)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.5))
+                    Text(formatTrillions(totalVal))
+                        .font(.system(size: 26, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
                 
-                Text(snap.indexType.subtitle)
-                    .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.45))
-                    .lineLimit(1)
+                // Mini Sparkline
+                if let spark = totalSnap?.sparkline, !spark.isEmpty {
+                    miniSparkline(points: spark, isUp: change24h >= 0)
+                        .frame(width: 80, height: 28)
+                }
+                
+                Divider()
+                    .frame(height: 36)
+                    .background(AppTheme.darkBorder)
+                
+                // TOTAL2 Badge
+                if let t2 = total2Snap {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("TOTAL2 (Altcoins)")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(AppTheme.cyan)
+                            Text(String(format: "%+.1f%%", t2.change24h))
+                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                .foregroundColor(t2.change24h >= 0 ? AppTheme.upGreen : AppTheme.downRed)
+                        }
+                        Text(t2.formattedValue)
+                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(AppTheme.darkCard.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                
+                // TOTAL3 Badge
+                if let t3 = total3Snap {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("TOTAL3 (Mid/Low)")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(AppTheme.accentBlue)
+                            Text(String(format: "%+.1f%%", t3.change24h))
+                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                .foregroundColor(t3.change24h >= 0 ? AppTheme.upGreen : AppTheme.downRed)
+                        }
+                        Text(t3.formattedValue)
+                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(AppTheme.darkCard.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                
+                Spacer()
             }
             
-            // Mini Sparkline preview
-            if !snap.sparkline.isEmpty {
-                miniSparkline(points: snap.sparkline, isUp: snap.change24h >= 0)
-                    .frame(height: 18)
+            // Full-Width Segmented Dominance Bar
+            VStack(alignment: .leading, spacing: 6) {
+                GeometryReader { geo in
+                    let w = geo.size.width
+                    let btcW = max(10, w * CGFloat(btcD / 100.0))
+                    let ethW = max(10, w * CGFloat(ethD / 100.0))
+                    let usdtW = max(10, w * CGFloat(usdtD / 100.0))
+                    let othersW = max(10, w - btcW - ethW - usdtW)
+                    
+                    HStack(spacing: 2) {
+                        // BTC.D Segment
+                        Rectangle()
+                            .fill(AppTheme.orange)
+                            .frame(width: btcW)
+                            .overlay(
+                                Text(String(format: "BTC %.1f%%", btcD))
+                                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.black)
+                                    .lineLimit(1),
+                                alignment: .center
+                            )
+                        
+                        // ETH.D Segment
+                        Rectangle()
+                            .fill(Color(red: 98/255, green: 126/255, blue: 234/255))
+                            .frame(width: ethW)
+                            .overlay(
+                                Text(String(format: "ETH %.1f%%", ethD))
+                                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white)
+                                    .lineLimit(1),
+                                alignment: .center
+                            )
+                        
+                        // USDT.D Segment
+                        Rectangle()
+                            .fill(AppTheme.upGreen)
+                            .frame(width: usdtW)
+                            .overlay(
+                                Text(String(format: "USDT %.1f%%", usdtD))
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.black)
+                                    .lineLimit(1),
+                                alignment: .center
+                            )
+                        
+                        // OTHERS.D Segment
+                        Rectangle()
+                            .fill(AppTheme.cyan)
+                            .frame(width: othersW)
+                            .overlay(
+                                Text(String(format: "OTHERS %.1f%%", othersD))
+                                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.black)
+                                    .lineLimit(1),
+                                alignment: .center
+                            )
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .frame(height: 22)
+            }
+            
+            // Dominance 4-Column Metric Breakdown Cards
+            HStack(spacing: 10) {
+                dominanceDetailPill(
+                    title: "BTC.D (Bitcoin)",
+                    percentage: btcD,
+                    marketCapUSD: btcCap,
+                    color: AppTheme.orange,
+                    icon: "bitcoinsign.circle.fill",
+                    subtitle: "Thống trị dòng vốn"
+                )
+                
+                dominanceDetailPill(
+                    title: "ETH.D (Ethereum)",
+                    percentage: ethD,
+                    marketCapUSD: ethCap,
+                    color: Color(red: 98/255, green: 126/255, blue: 234/255),
+                    icon: "diamond.fill",
+                    subtitle: "Hệ sinh thái EVM"
+                )
+                
+                dominanceDetailPill(
+                    title: "USDT.D (Stablecoin)",
+                    percentage: usdtD,
+                    marketCapUSD: usdtCap,
+                    color: AppTheme.upGreen,
+                    icon: "dollarsign.circle.fill",
+                    subtitle: "Tiền mặt chờ giải ngân"
+                )
+                
+                dominanceDetailPill(
+                    title: "OTHERS.D (Altcoins)",
+                    percentage: othersD,
+                    marketCapUSD: othersCap,
+                    color: AppTheme.cyan,
+                    icon: "square.stack.3d.up.fill",
+                    subtitle: "Mid & Low-Cap tokens"
+                )
             }
         }
-        .padding(12)
+        .padding(14)
         .background(AppTheme.darkCard)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.darkBorder, lineWidth: 1))
+    }
+    
+    private func dominanceDetailPill(
+        title: String,
+        percentage: Double,
+        marketCapUSD: Double,
+        color: Color,
+        icon: String,
+        subtitle: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 10))
+                    .foregroundColor(color)
+                Text(title)
+                    .font(.system(size: 10.5, weight: .bold))
+                    .foregroundColor(.white.opacity(0.85))
+                    .lineLimit(1)
+            }
+            
+            HStack(alignment: .lastTextBaseline, spacing: 6) {
+                Text(String(format: "%.2f%%", percentage))
+                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .foregroundColor(color)
+                
+                Text(formatTrillions(marketCapUSD))
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.55))
+            }
+            
+            Text(subtitle)
+                .font(.system(size: 9.5))
+                .foregroundColor(.white.opacity(0.4))
+                .lineLimit(1)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.02))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(AppTheme.darkBorder.opacity(0.5), lineWidth: 1))
     }
     
     // MARK: - Mini Sparkline
@@ -97,7 +321,7 @@ public struct MacroValuationCorrelationView: View {
         }
     }
     
-    // MARK: - Season Matrix Radar Card
+    // MARK: - 2. Season Matrix Radar Card
     private var seasonMatrixRadarCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -148,43 +372,68 @@ public struct MacroValuationCorrelationView: View {
                                 .overlay(Text("Mùa BTC (<25)").font(.system(size: 9)).foregroundColor(AppTheme.orange), alignment: .center)
                             
                             Rectangle()
-                                .fill(AppTheme.accentBlue.opacity(0.4))
+                                .fill(AppTheme.accentBlue.opacity(0.3))
                                 .frame(width: geo.size.width * 0.50)
-                                .overlay(Text("Cân bằng / Luân chuyển").font(.system(size: 9)).foregroundColor(AppTheme.accentBlue), alignment: .center)
+                                .overlay(Text("Luân chuyển / Tích lũy (25 - 75)").font(.system(size: 9)).foregroundColor(.white.opacity(0.7)), alignment: .center)
                             
                             Rectangle()
                                 .fill(AppTheme.upGreen.opacity(0.4))
-                                .frame(maxWidth: .infinity)
+                                .frame(width: geo.size.width * 0.25)
                                 .overlay(Text("Altseason (>75)").font(.system(size: 9)).foregroundColor(AppTheme.upGreen), alignment: .center)
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
                         
-                        // Indicator Needle
-                        let pos = CGFloat(seasonReport.altcoinSeasonIndex) / 100.0
-                        Rectangle()
+                        // Marker indicator
+                        let xPos = max(6, min(geo.size.width - 6, geo.size.width * CGFloat(seasonReport.altcoinSeasonIndex) / 100.0))
+                        Circle()
                             .fill(Color.white)
-                            .frame(width: 3, height: 18)
-                            .shadow(color: .white, radius: 2)
-                            .offset(x: max(0, min(geo.size.width - 3, geo.size.width * pos)))
+                            .frame(width: 14, height: 14)
+                            .shadow(color: .black.opacity(0.5), radius: 3)
+                            .position(x: xPos, y: 10)
                     }
                 }
-                .frame(height: 18)
+                .frame(height: 20)
             }
             
-            // Actionable summary box
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "lightbulb.fill")
-                    .foregroundColor(AppTheme.warningYellow)
-                    .font(.system(size: 12))
-                    .padding(.top, 2)
+            // 4 Rotation Regime Cards
+            HStack(spacing: 8) {
+                rotationMatrixPill(
+                    state: .bitcoinSeason,
+                    description: "Dòng tiền tập trung vào BTC. BTC.D tăng mạnh, Altcoins đi ngang hoặc giảm.",
+                    isActive: seasonReport.currentState == .bitcoinSeason
+                )
                 
-                Text(seasonReport.actionableSummary)
-                    .font(.system(size: 11.5))
-                    .foregroundColor(.white.opacity(0.8))
-                    .lineSpacing(2)
+                rotationMatrixPill(
+                    state: .capitalRotation,
+                    description: "BTC chững lại vùng đỉnh. Lợi nhuận dịch chuyển sang ETH và Top Layer 1.",
+                    isActive: seasonReport.currentState == .capitalRotation
+                )
+                
+                rotationMatrixPill(
+                    state: .altcoinSeason,
+                    description: "Toàn bộ Altcoins bùng nổ. BTC.D giảm mạnh, Mid-cap & Meme tăng trưởng vượt bậc.",
+                    isActive: seasonReport.currentState == .altcoinSeason
+                )
+                
+                rotationMatrixPill(
+                    state: .riskOffPanic,
+                    description: "Thị trường phòng thủ. Dòng vốn rút về USDT/Stablecoin, thanh lý diện rộng.",
+                    isActive: seasonReport.currentState == .riskOffPanic
+                )
             }
-            .padding(10)
-            .background(Color.white.opacity(0.03))
+            
+            // Actionable summary
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle.fill")
+                    .foregroundColor(AppTheme.cyan)
+                    .font(.system(size: 11))
+                Text(seasonReport.actionableSummary)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.white.opacity(0.85))
+            }
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppTheme.cyan.opacity(0.1))
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         .padding(14)
@@ -193,38 +442,81 @@ public struct MacroValuationCorrelationView: View {
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.darkBorder, lineWidth: 1))
     }
     
-    // MARK: - Stablecoin Liquidity Meter Card
+    private func rotationMatrixPill(state: MarketSeasonState, description: String, isActive: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: state.iconName)
+                    .font(.system(size: 10))
+                    .foregroundColor(state.color)
+                Text(state.rawValue)
+                    .font(.system(size: 10.5, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+            }
+            
+            Text(description)
+                .font(.system(size: 9.5))
+                .foregroundColor(.white.opacity(0.55))
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
+        .background(isActive ? state.color.opacity(0.15) : Color.white.opacity(0.02))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isActive ? state.color : AppTheme.darkBorder.opacity(0.5), lineWidth: isActive ? 1.5 : 1)
+        )
+    }
+    
+    // MARK: - 3. Stablecoin Liquidity & Cash Sidelined Meter
     private var stablecoinLiquidityMeterCard: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Image(systemName: "dollarsign.arrow.circlepath")
-                        .foregroundColor(AppTheme.cyan)
-                        .font(.system(size: 12))
-                    Text("Thanh Khoản Tiền Mặt Đang Chờ Gom (Stablecoin Sidelined Liquidity)")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
-                }
-                Text("Ước tính tổng lượng USDT, USDC, DAI đang ở trạng thái tiền mặt chờ giải ngân:")
-                    .font(.system(size: 10.5))
+        HStack(spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("THANH KHOẢN TIỀN MẶT BÊN LỀ (SIDELINED CASH)")
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white.opacity(0.5))
+                
+                HStack(spacing: 6) {
+                    Text(formatTrillions(seasonReport.stablecoinLiquidityUSD))
+                        .font(.system(size: 18, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                    
+                    Text(String(format: "(USDT.D: %.2f%%)", seasonReport.usdtDPercentage))
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundColor(AppTheme.upGreen)
+                }
+            }
+            
+            Divider()
+                .frame(height: 36)
+                .background(AppTheme.darkBorder)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Ý NGHĨA CHIẾN LƯỢC:")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(AppTheme.accentBlue)
+                Text("Tỷ trọng Stablecoin đo lường lượng tiền mặt sẵn sàng giải ngân bắt đáy hoặc đón đầu sóng mới.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.75))
             }
             
             Spacer()
-            
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(Formatters.formatVolume(seasonReport.stablecoinLiquidityUSD) + " USD")
-                    .font(.system(size: 16, weight: .bold, design: .monospaced))
-                    .foregroundColor(AppTheme.cyan)
-                
-                Text("Chiếm \(String(format: "%.1f%%", seasonReport.usdtDPercentage)) tổng vốn hóa")
-                    .font(.system(size: 10.5))
-                    .foregroundColor(.white.opacity(0.6))
-            }
         }
         .padding(12)
         .background(AppTheme.darkCard)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.darkBorder, lineWidth: 1))
+    }
+    
+    private func formatTrillions(_ val: Double) -> String {
+        if val >= 1_000_000_000_000 {
+            return String(format: "$%.2fT", val / 1_000_000_000_000)
+        } else if val >= 1_000_000_000 {
+            return String(format: "$%.1fB", val / 1_000_000_000)
+        } else {
+            return String(format: "$%.2f", val)
+        }
     }
 }
