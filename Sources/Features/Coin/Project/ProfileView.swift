@@ -28,30 +28,6 @@ public struct ProfileView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 300)
                 } else if let project = viewModel.projectProfile, let sec = viewModel.securityProfile {
-                    // Header Status Banner
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Hồ Sơ Dự Án, Đội Ngũ & Báo Cáo Kiểm Toán (\(symbol))")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Thẩm định uy tín nhà sáng lập, các quỹ VC hậu thuẫn, kiểm tra mã độc Smart Contract và tình trạng pháp lý.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                        
-                        Spacer()
-                        
-                        DataSourceBadge(type: .liveCoinGecko, text: "GitHub Dev & DeFiLlama VCs")
-                        DataSourceBadge(type: .liveCoinGecko, text: "CertiK / Etherscan Audited")
-                    }
-                    .padding(12)
-                    .background(AppTheme.darkCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.darkBorder, lineWidth: 1)
-                    )
-                    
                     // Sub-navigation Section Selector
                     SubtabSectionSelector(items: sections, selectedId: $viewModel.selectedSectionId)
                     

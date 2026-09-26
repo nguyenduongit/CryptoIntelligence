@@ -30,30 +30,6 @@ public struct DerivativesView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 300)
                 } else if let profile = viewModel.profile {
-                    // Header Status & Source Badges
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Phái Sinh, Funding Rate & Bản Đồ Thanh Lý (\(symbol))")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Dữ liệu phái sinh tham chiếu tổng hợp đa sàn, bản đồ cụm thanh lý và radar phát hiện bẫy săn râu nến.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                        
-                        Spacer()
-                        
-                        DataSourceBadge(type: .liveBinance, text: "Binance Spot Orderbook")
-                        DataSourceBadge(type: .liveBinance, text: "Binance Futures OI/Funding")
-                    }
-                    .padding(12)
-                    .background(AppTheme.darkCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.darkBorder, lineWidth: 1)
-                    )
-                    
                     // Sub-navigation Section Selector
                     SubtabSectionSelector(items: sections, selectedId: $selectedSectionId)
                     

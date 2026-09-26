@@ -30,30 +30,6 @@ public struct SmartMoneyView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 300)
                 } else if let profile = viewModel.profile {
-                    // Header Status Banner
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Dòng Tiền Cá Voi, Smart Money & Bẫy Thao Túng (\(symbol))")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Theo vết các ví tổ chức, phát hiện bẫy Pump & Dump, kiểm tra volume ảo và các lệnh mua bán on-chain đột biến.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                        
-                        Spacer()
-                        
-                        DataSourceBadge(type: .liveBinance, text: "Binance AggTrades Large Orders")
-                        DataSourceBadge(type: .liveCoinGecko, text: "Etherscan / Solscan On-Chain")
-                    }
-                    .padding(12)
-                    .background(AppTheme.darkCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.darkBorder, lineWidth: 1)
-                    )
-                    
                     // Sub-navigation Section Selector
                     SubtabSectionSelector(items: sections, selectedId: $selectedSectionId)
                     

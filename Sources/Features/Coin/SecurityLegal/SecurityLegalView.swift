@@ -22,29 +22,6 @@ public struct SecurityLegalView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 300)
                 } else if let profile = viewModel.profile {
-                    // Header Status Banner
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Bảo Mật Smart Contract & Tuân Thủ Pháp Lý (\(symbol))")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Đánh giá rủi ro mã nguồn, báo cáo kiểm toán độc lập và rủi ro quản trị.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                        
-                        Spacer()
-                        
-                        DataSourceBadge(type: .verifiedIntelligence, text: "Bảo Mật & Pháp Lý MiCA")
-                    }
-                    .padding(12)
-                    .background(AppTheme.darkCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.darkBorder, lineWidth: 1)
-                    )
-                    
                     // 1. Security Score & Overall Rating Banner
                     SecurityScoreBannerView(profile: profile)
                     

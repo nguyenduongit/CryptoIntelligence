@@ -29,30 +29,6 @@ public struct LiquidityView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 300)
                 } else if let liq = viewModel.liquidityProfile {
-                    // Header Status Banner
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Thanh Khoản, Pool AMM & Dòng Tiền Giao Dịch (\(symbol))")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Phân tích cấu trúc thanh khoản tập trung CEX vs phi tập trung DEX, độ trượt giá và các bể AMM.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                        
-                        Spacer()
-                        
-                        DataSourceBadge(type: .liveBinance, text: "Binance Spot Orderbook")
-                        DataSourceBadge(type: .liveCoinGecko, text: "DexScreener Live AMM")
-                    }
-                    .padding(12)
-                    .background(AppTheme.darkCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.darkBorder, lineWidth: 1)
-                    )
-                    
                     // Sub-navigation Section Selector
                     SubtabSectionSelector(items: sections, selectedId: $viewModel.selectedSectionId)
                     

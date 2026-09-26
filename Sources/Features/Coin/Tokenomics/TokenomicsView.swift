@@ -29,30 +29,6 @@ public struct TokenomicsView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 300)
                 } else if let profile = viewModel.profile {
-                    // Header Status Banner
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Định Giá, Nguồn Cung & Lịch Mở Khóa (\(symbol))")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Thẩm định vốn hóa thực tế, rủi ro pha loãng, định giá on-chain MVRV và lộ trình phát thải.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                        
-                        Spacer()
-                        
-                        DataSourceBadge(type: .liveBinance, text: "FDV Live Binance")
-                        DataSourceBadge(type: .liveCoinGecko, text: "CoinGecko & Glassnode Model")
-                    }
-                    .padding(12)
-                    .background(AppTheme.darkCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(AppTheme.darkBorder, lineWidth: 1)
-                    )
-                    
                     // Sub-navigation Section Selector
                     SubtabSectionSelector(items: sections, selectedId: $selectedSectionId)
                     
