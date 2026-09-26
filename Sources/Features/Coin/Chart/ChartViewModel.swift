@@ -39,11 +39,14 @@ public final class ChartViewModel: @unchecked Sendable {
     public var dragInitialElement: DrawingElement? = nil
     
     public var isLoading: Bool = false
+    public var isLoadingOlderCandles: Bool = false
+    public var hasReachedOldestCandle: Bool = false
     public var errorMessage: String? = nil
     
     private let dbManager: DatabaseManager
     private let candleProvider: BinanceCandleProvider
     private var loadTask: Task<Void, Never>?
+    private var loadOlderTask: Task<Void, Never>?
     private var klineObserver: NSObjectProtocol?
     private var activeSubscribedSymbol: String? = nil
     private var activeSubscribedTimeframe: Timeframe? = nil
@@ -76,6 +79,8 @@ public final class ChartViewModel: @unchecked Sendable {
     public func cleanup() {
         loadTask?.cancel()
         loadTask = nil
+        loadOlderTask?.cancel()
+        loadOlderTask = nil
         if let sym = activeSubscribedSymbol, let tf = activeSubscribedTimeframe {
             activeSubscribedSymbol = nil
             activeSubscribedTimeframe = nil
@@ -102,6 +107,10 @@ public final class ChartViewModel: @unchecked Sendable {
     public func setSymbol(_ newSymbol: String) {
         guard newSymbol != self.symbol else { return }
         cleanupPreviousKlineSubscription()
+        loadOlderTask?.cancel()
+        loadOlderTask = nil
+        self.isLoadingOlderCandles = false
+        self.hasReachedOldestCandle = false
         self.symbol = newSymbol
         self.candles = []
         self.computedIndicators = ComputedIndicators()
@@ -117,6 +126,10 @@ public final class ChartViewModel: @unchecked Sendable {
     public func setTimeframe(_ newTimeframe: Timeframe) {
         guard newTimeframe != self.timeframe else { return }
         cleanupPreviousKlineSubscription()
+        loadOlderTask?.cancel()
+        loadOlderTask = nil
+        self.isLoadingOlderCandles = false
+        self.hasReachedOldestCandle = false
         self.timeframe = newTimeframe
         self.candles = []
         self.computedIndicators = ComputedIndicators()
@@ -217,15 +230,82 @@ public final class ChartViewModel: @unchecked Sendable {
         let currentSymbol = self.symbol
         let currentInterval = self.timeframe.intervalString
         let records = newCandles.map { CandleRecord(symbol: currentSymbol, interval: currentInterval, candle: $0) }
-        Task.detached(priority: .background) { [dbManager = self.dbManager] in
+        saveCandlesToDatabase(records)
+    }
+    
+    private func saveCandlesToDatabase(_ records: [CandleRecord]) {
+        let db = self.dbManager
+        Task.detached(priority: .background) {
             do {
-                try dbManager.dbQueue.write { db in
+                try db.dbQueue.write { dbConn in
                     for rec in records {
-                        try rec.save(db)
+                        try rec.save(dbConn)
                     }
                 }
             } catch {
                 print("Failed to save candles to DB: \(error)")
+            }
+        }
+    }
+    
+    // MARK: - Lazy Loading Older Historical Candles (Infinite Scroll)
+    public func loadOlderCandlesIfNeeded() {
+        guard !isLoadingOlderCandles, !hasReachedOldestCandle, let oldest = candles.first else { return }
+        
+        isLoadingOlderCandles = true
+        let currentSymbol = self.symbol
+        let currentTimeframe = self.timeframe
+        let endTime = oldest.openTime - 1
+        
+        loadOlderTask?.cancel()
+        loadOlderTask = Task { @MainActor in
+            defer { self.isLoadingOlderCandles = false }
+            
+            do {
+                let older = try await candleProvider.fetchHistoricalCandles(
+                    symbol: currentSymbol,
+                    timeframe: currentTimeframe,
+                    limit: 1000,
+                    endTime: endTime
+                )
+                
+                guard !Task.isCancelled, self.symbol == currentSymbol, self.timeframe == currentTimeframe else { return }
+                
+                if older.isEmpty {
+                    self.hasReachedOldestCandle = true
+                    return
+                }
+                
+                let existingOpenTimes = Set(self.candles.map { $0.openTime })
+                let uniqueOlder = older.filter { !existingOpenTimes.contains($0.openTime) }
+                
+                if uniqueOlder.isEmpty {
+                    self.hasReachedOldestCandle = true
+                    return
+                }
+                
+                let addedCount = Double(uniqueOlder.count)
+                
+                // Prepend and sort
+                var merged = uniqueOlder
+                merged.append(contentsOf: self.candles)
+                merged.sort { $0.openTime < $1.openTime }
+                self.candles = merged
+                
+                // Shift visibleRange by addedCount so the viewport does not jump
+                let newLower = self.visibleRange.lowerBound + addedCount
+                let newUpper = self.visibleRange.upperBound + addedCount
+                self.visibleRange = newLower...newUpper
+                
+                // Save older candles to SQLite cache in background
+                let currentInterval = currentTimeframe.intervalString
+                let records = uniqueOlder.map { CandleRecord(symbol: currentSymbol, interval: currentInterval, candle: $0) }
+                self.saveCandlesToDatabase(records)
+                
+                self.recomputeIndicators()
+                self.updatePriceRange()
+            } catch {
+                print("Failed to load older candles: \(error)")
             }
         }
     }
@@ -590,13 +670,18 @@ public final class ChartViewModel: @unchecked Sendable {
         var newLower = anchorIndex - anchorFraction * newSpan
         var newUpper = newLower + newSpan
         
-        if newLower < -5.0 {
-            newLower = -5.0
+        let minBound: Double = hasReachedOldestCandle ? -10.0 : -35.0
+        if newLower < minBound {
+            newLower = minBound
             newUpper = newLower + newSpan
         }
         
         self.visibleRange = newLower...newUpper
         updatePriceRange()
+        
+        if newLower < 80 {
+            loadOlderCandlesIfNeeded()
+        }
     }
     
     public func pan(deltaX: CGFloat, width: CGFloat) {
@@ -608,7 +693,7 @@ public final class ChartViewModel: @unchecked Sendable {
         var newLower = visibleRange.lowerBound - deltaCandles
         var newUpper = visibleRange.upperBound - deltaCandles
         
-        let minBound: Double = -10.0
+        let minBound: Double = hasReachedOldestCandle ? -10.0 : -35.0
         let maxBound = Double(candles.count) + 30.0
         
         if newLower < minBound {
@@ -621,6 +706,10 @@ public final class ChartViewModel: @unchecked Sendable {
         
         self.visibleRange = newLower...newUpper
         updatePriceRange()
+        
+        if newLower < 80 {
+            loadOlderCandlesIfNeeded()
+        }
     }
     
     public func stretchPriceY(deltaY: CGFloat, height: CGFloat) {

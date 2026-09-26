@@ -93,6 +93,21 @@ public struct TimeframePickerView: View {
                 IndicatorSettingsModal(viewModel: viewModel, isPresented: $isShowingIndicatorModal)
             }
             
+            if viewModel.isLoadingOlderCandles {
+                HStack(spacing: 5) {
+                    ProgressView()
+                        .scaleEffect(0.65)
+                    Text("Đang tải nến lịch sử...")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(AppTheme.accentBlue)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(AppTheme.accentBlue.opacity(0.12))
+                .clipShape(Capsule())
+                .transition(.opacity)
+            }
+            
             Spacer()
             
             // Auto Fit reset button

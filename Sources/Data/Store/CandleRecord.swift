@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public struct CandleRecord: Codable, FetchableRecord, PersistableRecord {
+public struct CandleRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     public static let databaseTableName = "candles"
     
     public var symbol: String

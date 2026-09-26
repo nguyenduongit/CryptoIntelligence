@@ -233,6 +233,20 @@ public final class NSChartContainerView: NSView {
         isDrawing = false
     }
     
+    // MARK: - Native Trackpad Pinch to Zoom
+    public override func magnify(with event: NSEvent) {
+        guard let vm = viewModel else { return }
+        let location = convert(event.locationInWindow, from: nil)
+        let chartWidth = bounds.width - priceAxisWidth
+        guard chartWidth > 0 else { return }
+        
+        let anchorX = max(0, min(location.x, chartWidth))
+        // event.magnification > 0 means pinch outward (zoom in), < 0 means pinch inward (zoom out)
+        let factor = 1.0 - Double(event.magnification) * 1.2
+        let clamped = max(0.85, min(1.15, factor))
+        vm.zoom(factor: clamped, anchorX: anchorX, width: chartWidth)
+    }
+    
     // MARK: - Scroll & Zoom
     public override func scrollWheel(with event: NSEvent) {
         guard let vm = viewModel else { return }
@@ -243,17 +257,31 @@ public final class NSChartContainerView: NSView {
         let anchorX = max(0, min(location.x, chartWidth))
         
         if event.hasPreciseScrollingDeltas {
-            let delta = event.scrollingDeltaY
-            if abs(delta) > 0.001 {
-                let zoomFactor = delta > 0 ? 0.96 : 1.04
+            // Trackpad continuous scrolling
+            let deltaX = event.scrollingDeltaX
+            let deltaY = event.scrollingDeltaY
+            
+            // Shift key or dominant horizontal swipe -> Pan horizontally
+            if event.modifierFlags.contains(.shift) || abs(deltaX) > abs(deltaY) * 1.2 {
+                let panDelta = event.modifierFlags.contains(.shift) ? (deltaY != 0 ? deltaY : deltaX) : deltaX
+                if abs(panDelta) > 0.2 {
+                    vm.pan(deltaX: panDelta * 1.2, width: chartWidth)
+                }
+            }
+            // Dominant vertical swipe -> Zoom
+            else if abs(deltaY) > 0.8 {
+                let zoomFactor = deltaY > 0 ? 0.97 : 1.03
                 vm.zoom(factor: zoomFactor, anchorX: anchorX, width: chartWidth)
             }
-            if abs(event.scrollingDeltaX) > 0.001 {
-                vm.pan(deltaX: event.scrollingDeltaX * 1.5, width: chartWidth)
-            }
         } else {
-            let zoomFactor = event.deltaY > 0 ? 0.90 : 1.10
-            vm.zoom(factor: zoomFactor, anchorX: anchorX, width: chartWidth)
+            // Traditional stepped mouse wheel (e.g. external USB/Bluetooth mouse)
+            if event.modifierFlags.contains(.shift) {
+                let panDelta = event.deltaY != 0 ? event.deltaY : event.deltaX
+                vm.pan(deltaX: panDelta * 20.0, width: chartWidth)
+            } else {
+                let zoomFactor = event.deltaY > 0 ? 0.90 : 1.10
+                vm.zoom(factor: zoomFactor, anchorX: anchorX, width: chartWidth)
+            }
         }
     }
     
