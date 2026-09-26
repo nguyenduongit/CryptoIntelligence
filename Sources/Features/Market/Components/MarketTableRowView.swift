@@ -1,71 +1,86 @@
 import SwiftUI
 
 /// A single row in the Market table displaying one coin's data.
+/// Uses responsive column widths from MarketTableColumns to fill 100% of the table width.
 public struct MarketTableRowView: View {
     public let rank: Int
     public let ticker: MarketTicker24h
+    public let columns: MarketTableColumns
     public let onSelect: () -> Void
 
     @State private var isHovered: Bool = false
 
-    public init(rank: Int, ticker: MarketTicker24h, onSelect: @escaping () -> Void) {
+    public init(
+        rank: Int,
+        ticker: MarketTicker24h,
+        columns: MarketTableColumns,
+        onSelect: @escaping () -> Void
+    ) {
         self.rank = rank
         self.ticker = ticker
+        self.columns = columns
         self.onSelect = onSelect
     }
 
     public var body: some View {
         Button(action: onSelect) {
             HStack(spacing: 0) {
-                // ── Rank ──────────────────────────── 44pt
+                // ── Rank ────────────────────────────
                 rankBadge
-                    .frame(width: 44, alignment: .center)
+                    .frame(width: columns.rank, alignment: .center)
 
-                // ── Symbol + Sector ───────────────── 160pt
+                // ── Symbol + Sector ─────────────────
                 symbolCell
-                    .frame(width: 160, alignment: .leading)
+                    .frame(width: columns.symbol, alignment: .leading)
+                    .padding(.leading, 8)
 
-                // ── Price ─────────────────────────── 104pt
+                // ── Price ───────────────────────────
                 Text(Formatters.formatPrice(ticker.price))
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                    .frame(width: 104, alignment: .trailing)
+                    .frame(width: columns.price, alignment: .trailing)
                     .padding(.trailing, 8)
 
-                // ── 24h % ─────────────────────────── 84pt
+                // ── 24h % ───────────────────────────
                 changeBadge
-                    .frame(width: 84, alignment: .trailing)
+                    .frame(width: columns.change24h, alignment: .trailing)
                     .padding(.trailing, 8)
 
-                // ── Vol 24h (USDT) ────────────────── 96pt
-                Text("$\(Formatters.formatVolume(ticker.quoteVolume))")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.75))
-                    .lineLimit(1)
-                    .frame(width: 96, alignment: .trailing)
+                // ── 24h High / Low ──────────────────
+                highLowCell
+                    .frame(width: columns.highLow, alignment: .trailing)
                     .padding(.trailing, 8)
 
-                // ── Market Cap ────────────────────── 84pt
+                // ── Vol 24h (USDT) ──────────────────
+                volumeCell
+                    .frame(width: columns.volume, alignment: .trailing)
+                    .padding(.trailing, 8)
+
+                // ── Market Cap ──────────────────────
                 Text(Formatters.formatMarketCap(ticker.estimatedMarketCap))
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.white.opacity(0.65))
                     .lineLimit(1)
-                    .frame(width: 84, alignment: .trailing)
+                    .frame(width: columns.cap, alignment: .trailing)
                     .padding(.trailing, 8)
 
-                // ── Sparkline ─────────────────────── 80pt
+                // ── Sparkline ───────────────────────
                 SparklineView(ticker: ticker)
-                    .frame(width: 80, alignment: .center)
-                    .padding(.horizontal, 8)
+                    .frame(width: max(60, columns.sparkline - 16), height: 26)
+                    .frame(width: columns.sparkline, alignment: .center)
+
+                // ── Action / Detail ─────────────────
+                actionIcon
+                    .frame(width: columns.action, alignment: .center)
             }
-            .frame(height: 38)
+            .frame(width: columns.totalWidth, height: 40)
             .background(rowBg)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in isHovered = hovering }
-        .help("Xem chi tiết \(ticker.baseAsset)")
+        .help("Nhấn để xem biểu đồ & phân tích chi tiết \(ticker.baseAsset)/USDT")
     }
 
     // MARK: - Sub-views
@@ -113,7 +128,6 @@ public struct MarketTableRowView: View {
                 .background(sectorColor.opacity(0.12))
                 .clipShape(Capsule())
         }
-        .padding(.leading, 4)
     }
 
     private var changeBadge: some View {
@@ -125,6 +139,48 @@ public struct MarketTableRowView: View {
             .padding(.vertical, 2)
             .background(color.opacity(0.12))
             .clipShape(RoundedRectangle(cornerRadius: 4))
+    }
+
+    private var highLowCell: some View {
+        VStack(alignment: .trailing, spacing: 1.5) {
+            HStack(spacing: 2) {
+                Text("C")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundColor(AppTheme.upGreen.opacity(0.8))
+                Text(Formatters.formatPrice(ticker.highPrice))
+                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.75))
+            }
+            HStack(spacing: 2) {
+                Text("T")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundColor(AppTheme.downRed.opacity(0.8))
+                Text(Formatters.formatPrice(ticker.lowPrice))
+                    .font(.system(size: 10.5, weight: .medium, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+        }
+        .lineLimit(1)
+    }
+
+    private var volumeCell: some View {
+        VStack(alignment: .trailing, spacing: 1.5) {
+            Text("$\(Formatters.formatVolume(ticker.quoteVolume))")
+                .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                .foregroundColor(.white.opacity(0.85))
+            Text("\(Formatters.formatVolume(ticker.volume)) \(ticker.baseAsset)")
+                .font(.system(size: 9.5, design: .monospaced))
+                .foregroundColor(.white.opacity(0.4))
+        }
+        .lineLimit(1)
+    }
+
+    private var actionIcon: some View {
+        Image(systemName: "chevron.right.circle.fill")
+            .font(.system(size: 13))
+            .foregroundColor(isHovered ? AppTheme.accentBlue : .white.opacity(0.12))
+            .scaleEffect(isHovered ? 1.15 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 
     private var rowBg: Color {

@@ -2,16 +2,20 @@ import SwiftUI
 
 /// Sticky column header bar for the market table.
 /// Clicking a column header sorts by that column; clicking again toggles direction.
+/// Uses responsive column widths from MarketTableColumns.
 public struct MarketTableHeaderView: View {
+    public let columns: MarketTableColumns
     @Binding var sortColumn: MarketTableSortColumn
     @Binding var sortDirection: MarketSortDirection
     let onSort: (MarketTableSortColumn) -> Void
 
     public init(
+        columns: MarketTableColumns,
         sortColumn: Binding<MarketTableSortColumn>,
         sortDirection: Binding<MarketSortDirection>,
         onSort: @escaping (MarketTableSortColumn) -> Void
     ) {
+        self.columns = columns
         self._sortColumn = sortColumn
         self._sortDirection = sortDirection
         self.onSort = onSort
@@ -19,31 +23,40 @@ public struct MarketTableHeaderView: View {
 
     public var body: some View {
         HStack(spacing: 0) {
-            // #
-            headerCell(label: "#", column: .rank, width: 44, alignment: .center)
+            // # (Rank)
+            headerCell(label: "#", column: .rank, width: columns.rank, alignment: .center)
 
             // Symbol
-            headerCell(label: "Symbol", column: .symbol, width: 160, alignment: .leading, leadingPad: 4)
+            headerCell(label: "Tên / Cặp", column: .symbol, width: columns.symbol, alignment: .leading, leadingPad: 8)
 
             // Price
-            headerCell(label: "Giá (USDT)", column: .price, width: 104, alignment: .trailing, trailingPad: 8)
+            headerCell(label: "Giá (USDT)", column: .price, width: columns.price, alignment: .trailing, trailingPad: 8)
 
             // 24h %
-            headerCell(label: "24h %", column: .change24h, width: 84, alignment: .trailing, trailingPad: 8)
+            headerCell(label: "24h %", column: .change24h, width: columns.change24h, alignment: .trailing, trailingPad: 8)
 
-            // Volume
-            headerCell(label: "Vol 24h", column: .volume, width: 96, alignment: .trailing, trailingPad: 8)
+            // 24h High/Low
+            headerCell(label: "24h Cao / Thấp", column: .highLow, width: columns.highLow, alignment: .trailing, trailingPad: 8)
 
-            // Cap
-            headerCell(label: "Vốn Hóa", column: .cap, width: 84, alignment: .trailing, trailingPad: 8)
+            // Volume 24h
+            headerCell(label: "Vol 24h (USDT)", column: .volume, width: columns.volume, alignment: .trailing, trailingPad: 8)
+
+            // Market Cap
+            headerCell(label: "Vốn Hóa", column: .cap, width: columns.cap, alignment: .trailing, trailingPad: 8)
 
             // Sparkline — not sortable
-            Text("Biến Động")
+            Text("Biến Động 24h")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundColor(.white.opacity(0.45))
-                .frame(width: 80, alignment: .center)
+                .frame(width: columns.sparkline, alignment: .center)
+
+            // Detail / Action
+            Text("Chi Tiết")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.white.opacity(0.45))
+                .frame(width: columns.action, alignment: .center)
         }
-        .frame(height: 30)
+        .frame(width: columns.totalWidth, height: 32)
         .background(AppTheme.darkHeaderBg)
         .overlay(Rectangle().fill(AppTheme.darkBorder).frame(height: 1), alignment: .bottom)
     }
@@ -78,7 +91,7 @@ public struct MarketTableHeaderView: View {
 
                 if alignment == .leading { Spacer() }
             }
-            .frame(width: width - leadingPad - trailingPad, alignment: alignment)
+            .frame(width: max(0, width - leadingPad - trailingPad), alignment: alignment)
             .padding(.leading, leadingPad)
             .padding(.trailing, trailingPad)
             .contentShape(Rectangle())

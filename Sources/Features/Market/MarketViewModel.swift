@@ -28,7 +28,7 @@ public enum MarketViewMode: String, CaseIterable, Identifiable, Sendable {
 
 // MARK: - Market Table Sort
 public enum MarketTableSortColumn: String, Sendable {
-    case rank, symbol, price, change24h, volume, cap
+    case rank, symbol, price, change24h, highLow, volume, cap
 }
 
 public enum MarketSortDirection: Sendable {
@@ -188,6 +188,8 @@ public final class MarketViewModel: @unchecked Sendable {
                 list.sort { tableSortDirection == .descending ? $0.price > $1.price : $0.price < $1.price }
             case .change24h:
                 list.sort { tableSortDirection == .descending ? $0.priceChangePercent > $1.priceChangePercent : $0.priceChangePercent < $1.priceChangePercent }
+            case .highLow:
+                list.sort { tableSortDirection == .descending ? $0.highPrice > $1.highPrice : $0.highPrice < $1.highPrice }
             case .cap:
                 list.sort { tableSortDirection == .descending ? $0.estimatedMarketCap > $1.estimatedMarketCap : $0.estimatedMarketCap < $1.estimatedMarketCap }
             }

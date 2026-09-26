@@ -99,6 +99,6 @@ public struct SparklineView: View {
             )
             context.fill(Path(ellipseIn: dotRect), with: .color(lineColor))
         }
-        .frame(width: 64, height: 28)
+        .frame(height: 26)
     }
 }
