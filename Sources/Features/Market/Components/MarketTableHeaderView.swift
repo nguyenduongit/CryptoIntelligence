@@ -94,6 +94,7 @@ public struct MarketTableHeaderView: View {
             .padding(.leading, leadingPad)
             .padding(.trailing, trailingPad)
             .frame(width: width, alignment: alignment)
+            .background(Color.white.opacity(0.001))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

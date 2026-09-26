@@ -66,13 +66,14 @@ public struct GlobalMacroSidebarView: View {
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
                             .background(
-                                isSelected ? AppTheme.accentBlue.opacity(0.12) : Color.clear
+                                isSelected ? AppTheme.accentBlue.opacity(0.12) : Color.white.opacity(0.001)
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 8))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 8)
                                     .stroke(isSelected ? AppTheme.accentBlue.opacity(0.4) : Color.clear, lineWidth: 1)
                             )
+                            .contentShape(RoundedRectangle(cornerRadius: 8))
                         }
                         .buttonStyle(.plain)
                     }

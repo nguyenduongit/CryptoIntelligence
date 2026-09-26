@@ -84,6 +84,7 @@ public struct LiquidationHeatmapControlsView: View {
                             RoundedRectangle(cornerRadius: 5)
                                 .stroke(AppTheme.darkBorder, lineWidth: 1)
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: 5))
                 }
                 .buttonStyle(.plain)
             }
@@ -127,6 +128,10 @@ public struct LiquidationHeatmapControlsView: View {
                                 .foregroundColor(.white.opacity(0.8))
                         }
                     }
+                    .padding(.vertical, 3)
+                    .padding(.horizontal, 4)
+                    .background(Color.white.opacity(0.001))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 
@@ -147,6 +152,10 @@ public struct LiquidationHeatmapControlsView: View {
                                 .foregroundColor(.white.opacity(0.8))
                         }
                     }
+                    .padding(.vertical, 3)
+                    .padding(.horizontal, 4)
+                    .background(Color.white.opacity(0.001))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -174,6 +183,7 @@ public struct LiquidationHeatmapControlsView: View {
                 RoundedRectangle(cornerRadius: 3)
                     .stroke(isSelected ? Color.white : Color.white.opacity(0.2), lineWidth: isSelected ? 1.5 : 0.8)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 3))
         }
         .buttonStyle(.plain)
         .help(palette.rawValue)

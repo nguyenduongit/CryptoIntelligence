@@ -30,6 +30,7 @@ public struct TimeframePickerView: View {
                             : .white.opacity(0.7)
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .contentShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
                 .help("Khung thời gian \(tf.displayName) (Phím tắt: \(tf.shortcutNumber))")
@@ -70,6 +71,7 @@ public struct TimeframePickerView: View {
                             lineWidth: 1
                         )
                 )
+                .contentShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.plain)
             .help("Bật/Tắt thang Logarithmic (Phím tắt: L)")
@@ -87,6 +89,7 @@ public struct TimeframePickerView: View {
                 .background(AppTheme.darkCard)
                 .foregroundColor(.white.opacity(0.8))
                 .clipShape(RoundedRectangle(cornerRadius: 4))
+                .contentShape(RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.plain)
             .popover(isPresented: $isShowingIndicatorModal, arrowEdge: .bottom) {
@@ -120,6 +123,7 @@ public struct TimeframePickerView: View {
                         .padding(.vertical, 3)
                         .background(AppTheme.warningYellow.opacity(0.15))
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .contentShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
             }
@@ -166,6 +170,7 @@ public struct TimeframePickerView: View {
                                 lineWidth: 1
                             )
                     )
+                    .contentShape(RoundedRectangle(cornerRadius: 4))
                 }
                 .buttonStyle(.plain)
                 .help(isInWatchlist ? "Xóa \(viewModel.symbol) khỏi Watchlist" : "Thêm \(viewModel.symbol) vào Watchlist")

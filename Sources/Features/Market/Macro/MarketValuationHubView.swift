@@ -77,6 +77,7 @@ public struct MarketValuationHubView: View {
                             RoundedRectangle(cornerRadius: 6)
                                 .stroke(isSelected ? AppTheme.cyan.opacity(0.6) : AppTheme.darkBorder, lineWidth: 1)
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
                 }
@@ -97,6 +98,9 @@ public struct MarketValuationHubView: View {
                         .foregroundColor(AppTheme.accentBlue)
                         .rotationEffect(.degrees(isLoading ? 360 : 0))
                         .animation(isLoading ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isLoading)
+                        .padding(5)
+                        .background(Color.white.opacity(0.001))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Làm mới dữ liệu")

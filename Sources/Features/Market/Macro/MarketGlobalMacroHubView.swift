@@ -101,6 +101,9 @@ public struct MarketGlobalMacroHubView: View {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(AppTheme.accentBlue)
+                        .padding(5)
+                        .background(Color.white.opacity(0.001))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Cập nhật dữ liệu vĩ mô")

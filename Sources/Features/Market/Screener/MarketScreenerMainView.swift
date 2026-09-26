@@ -54,6 +54,10 @@ public struct MarketScreenerMainView: View {
                         }
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(AppTheme.accentBlue)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.001))
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -125,6 +129,10 @@ public struct MarketScreenerMainView: View {
                     }
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(AppTheme.accentBlue)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.001))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }

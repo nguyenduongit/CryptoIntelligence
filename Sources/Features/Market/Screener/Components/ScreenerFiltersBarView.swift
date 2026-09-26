@@ -25,6 +25,9 @@ public struct ScreenerFiltersBarView: View {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(.white.opacity(0.4))
                                 .font(.system(size: 11))
+                                .padding(2)
+                                .background(Color.white.opacity(0.001))
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -94,6 +97,7 @@ public struct ScreenerFiltersBarView: View {
                 .padding(.vertical, 5)
                 .background(isSelected ? AppTheme.accentBlue : AppTheme.darkSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 5))
+                .contentShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
     }
@@ -117,6 +121,7 @@ public struct ScreenerFiltersBarView: View {
                 RoundedRectangle(cornerRadius: 5)
                     .stroke(isSelected ? Color.white.opacity(0.3) : AppTheme.darkBorder, lineWidth: 1)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
     }

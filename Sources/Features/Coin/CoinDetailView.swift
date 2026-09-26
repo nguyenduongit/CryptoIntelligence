@@ -42,7 +42,7 @@ public struct CoinDetailView: View {
                             .background(
                                 router.selectedSubtab == subtab
                                 ? AppTheme.darkCard
-                                : Color.clear
+                                : Color.white.opacity(0.001)
                             )
                             .foregroundColor(
                                 router.selectedSubtab == subtab
@@ -57,6 +57,7 @@ public struct CoinDetailView: View {
                                         lineWidth: 1
                                     )
                             )
+                            .contentShape(RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
                 }
@@ -86,6 +87,7 @@ public struct CoinDetailView: View {
                             RoundedRectangle(cornerRadius: 4)
                                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: 4))
                     }
                     .buttonStyle(.plain)
                     .help("Thêm \(symbol) vào Watchlist")

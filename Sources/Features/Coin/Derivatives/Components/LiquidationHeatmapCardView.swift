@@ -83,8 +83,9 @@ public struct LiquidationHeatmapCardView: View {
                             .foregroundColor(displayMode == mode ? .white : .white.opacity(0.5))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3.5)
-                            .background(displayMode == mode ? AppTheme.accentBlue : Color.clear)
+                            .background(displayMode == mode ? AppTheme.accentBlue : Color.white.opacity(0.001))
                             .clipShape(RoundedRectangle(cornerRadius: 4))
+                            .contentShape(RoundedRectangle(cornerRadius: 4))
                         }
                         .buttonStyle(.plain)
                     }

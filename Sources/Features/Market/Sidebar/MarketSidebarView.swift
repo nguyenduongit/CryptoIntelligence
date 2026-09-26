@@ -108,7 +108,7 @@ public struct MarketSidebarView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(isSelected ? AppTheme.accentBlue.opacity(0.1) : Color.clear)
+            .background(isSelected ? AppTheme.accentBlue.opacity(0.1) : Color.white.opacity(0.001))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
@@ -164,7 +164,7 @@ public struct MarketSidebarView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
-            .background(isSelected ? AppTheme.accentBlue.opacity(0.08) : Color.clear)
+            .background(isSelected ? AppTheme.accentBlue.opacity(0.08) : Color.white.opacity(0.001))
             .clipShape(RoundedRectangle(cornerRadius: 4))
             .contentShape(Rectangle())
         }

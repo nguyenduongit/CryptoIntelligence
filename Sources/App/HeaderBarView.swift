@@ -15,6 +15,9 @@ public struct HeaderBarView: View {
                     Image(systemName: "sidebar.left")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white.opacity(0.8))
+                        .padding(6)
+                        .background(Color.white.opacity(0.001))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help("Ẩn/Hiện Sidebar (Cmd+Opt+S)")
@@ -61,7 +64,7 @@ public struct HeaderBarView: View {
                         .background(
                             router.selectedTab == .settings
                             ? AppTheme.darkCard
-                            : Color.clear
+                            : Color.white.opacity(0.001)
                         )
                         .foregroundColor(
                             router.selectedTab == .settings
@@ -69,6 +72,7 @@ public struct HeaderBarView: View {
                             : .white.opacity(0.7)
                         )
                         .clipShape(Circle())
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .help("Cài đặt ứng dụng")
@@ -111,13 +115,14 @@ public struct HeaderBarView: View {
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 6)
-            .background(isSelected ? color.opacity(0.18) : Color.clear)
+            .background(isSelected ? color.opacity(0.18) : Color.white.opacity(0.001))
             .foregroundColor(isSelected ? .white : .white.opacity(0.65))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(isSelected ? color.opacity(0.5) : Color.clear, lineWidth: 1)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
     }

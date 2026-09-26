@@ -185,7 +185,7 @@ public struct MarketTableRowView: View {
 
     private var rowBg: Color {
         if isHovered { return AppTheme.darkSurface }
-        return Color.clear
+        return Color.white.opacity(0.001)
     }
 
     private var rankTextColor: Color {

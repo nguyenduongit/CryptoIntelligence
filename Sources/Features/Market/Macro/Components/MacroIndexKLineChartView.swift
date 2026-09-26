@@ -44,6 +44,7 @@ public struct MacroIndexKLineChartView: View {
                                     RoundedRectangle(cornerRadius: 6)
                                         .stroke(selectedIndex == idx ? AppTheme.accentBlue : AppTheme.darkBorder, lineWidth: 1)
                                 )
+                                .contentShape(RoundedRectangle(cornerRadius: 6))
                             }
                             .buttonStyle(.plain)
                         }
@@ -63,9 +64,10 @@ public struct MacroIndexKLineChartView: View {
                                 .font(.system(size: 11, weight: selectedTimeframe.lowercased() == tf ? .bold : .medium, design: .monospaced))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(selectedTimeframe.lowercased() == tf ? Color.white.opacity(0.15) : Color.clear)
+                                .background(selectedTimeframe.lowercased() == tf ? Color.white.opacity(0.15) : Color.white.opacity(0.001))
                                 .foregroundColor(selectedTimeframe.lowercased() == tf ? .white : .white.opacity(0.5))
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
+                                .contentShape(RoundedRectangle(cornerRadius: 4))
                         }
                         .buttonStyle(.plain)
                     }

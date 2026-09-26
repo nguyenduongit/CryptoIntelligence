@@ -43,9 +43,11 @@ public struct MarketSignalRowCardView: View {
                             .foregroundColor(.white.opacity(0.5))
                     }
                 }
+                .frame(width: 120, alignment: .leading)
+                .background(Color.white.opacity(0.001))
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .frame(width: 120, alignment: .leading)
             
             // 2. Category & Direction Badges
             VStack(alignment: .leading, spacing: 4) {
@@ -121,6 +123,7 @@ public struct MarketSignalRowCardView: View {
                     .padding(8)
                     .background(AppTheme.accentBlue)
                     .clipShape(Circle())
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .help("Xem biểu đồ kỹ thuật & nghiên cứu chi tiết")

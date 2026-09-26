@@ -62,6 +62,9 @@ public struct MarketHubView: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 11))
                             .foregroundColor(.white.opacity(0.35))
+                            .padding(2)
+                            .background(Color.white.opacity(0.001))
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -126,6 +129,7 @@ public struct MarketHubView: View {
                     RoundedRectangle(cornerRadius: 5)
                         .stroke(viewModel.isSectorFlowExpanded ? AppTheme.cyan.opacity(0.4) : AppTheme.darkBorder, lineWidth: 1)
                 )
+                .contentShape(RoundedRectangle(cornerRadius: 5))
             }
             .buttonStyle(.plain)
             .help("Bật/tắt widget phân bổ vốn & dòng tiền phân khúc")
@@ -151,6 +155,9 @@ public struct MarketHubView: View {
                             : .default,
                         value: viewModel.isLoading
                     )
+                    .padding(5)
+                    .background(Color.white.opacity(0.001))
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(viewModel.isLoading)

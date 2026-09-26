@@ -191,6 +191,7 @@ public struct SectorCapitalAllocationView: View {
                 RoundedRectangle(cornerRadius: 7)
                     .stroke(isSelected ? item.sector.color : AppTheme.darkBorder.opacity(0.6), lineWidth: isSelected ? 1.5 : 1)
             )
+            .contentShape(RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
     }

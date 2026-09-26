@@ -33,6 +33,9 @@ public struct SymbolSearchPopover: View {
                     }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.white.opacity(0.5))
+                            .padding(2)
+                            .background(Color.white.opacity(0.001))
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -119,6 +122,7 @@ public struct SymbolSearchPopover: View {
                                             .padding(.vertical, 4)
                                             .background(AppTheme.accentBlue)
                                             .clipShape(RoundedRectangle(cornerRadius: 4))
+                                            .contentShape(RoundedRectangle(cornerRadius: 4))
                                     }
                                     .buttonStyle(.plain)
                                 }

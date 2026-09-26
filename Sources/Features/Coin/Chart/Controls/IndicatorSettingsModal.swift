@@ -19,6 +19,9 @@ public struct IndicatorSettingsModal: View {
                 Button(action: { isPresented = false }) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.white.opacity(0.5))
+                        .padding(2)
+                        .background(Color.white.opacity(0.001))
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -82,6 +85,7 @@ public struct IndicatorSettingsModal: View {
                 .background(AppTheme.accentBlue)
                 .foregroundColor(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                .contentShape(RoundedRectangle(cornerRadius: 6))
                 .buttonStyle(.plain)
             }
         }
@@ -118,5 +122,9 @@ private struct ToggleRow: View {
         .padding(.vertical, 4)
         .background(AppTheme.darkCard.opacity(0.4))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        .contentShape(RoundedRectangle(cornerRadius: 6))
+        .onTapGesture {
+            isOn.toggle()
+        }
     }
 }

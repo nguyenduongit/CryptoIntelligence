@@ -56,7 +56,7 @@ public struct SubtabSectionSelector: View {
                     .background(
                         isSelected
                         ? AppTheme.darkCard
-                        : Color.clear
+                        : Color.white.opacity(0.001)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .overlay(
@@ -66,6 +66,7 @@ public struct SubtabSectionSelector: View {
                                 lineWidth: 1
                             )
                     )
+                    .contentShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
             }

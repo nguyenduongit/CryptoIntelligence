@@ -30,6 +30,9 @@ public struct WatchlistView: View {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 11))
                                 .foregroundColor(.white.opacity(0.4))
+                                .padding(2)
+                                .background(Color.white.opacity(0.001))
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -53,6 +56,7 @@ public struct WatchlistView: View {
                         .background(AppTheme.accentBlue)
                         .foregroundColor(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
                 .popover(isPresented: $isShowingSearch, arrowEdge: .bottom) {
@@ -209,6 +213,7 @@ private struct FilterPill: View {
                     Capsule()
                         .stroke(isSelected ? AppTheme.accentBlue : AppTheme.darkBorder, lineWidth: 1)
                 )
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
