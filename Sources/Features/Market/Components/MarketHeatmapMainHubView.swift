@@ -11,12 +11,13 @@ public struct MarketHeatmapMainHubView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // 1. Top Toolbar (Information & Status)
+            // 1. Top Toolbar (Information, Sizing Mode Selector & Status)
             heatmapTopToolbar
             
-            // 2. Heatmap Grid Content
+            // 2. Heatmap Grid Content with Dynamic Sizing
             MarketHeatmapView(
-                tickers: viewModel.filteredTickers,
+                tickers: viewModel.filteredHeatmapTickers,
+                isSizingByVolume: viewModel.isHeatmapSizingByVolume,
                 onSelectSymbol: onSelectSymbol
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -40,13 +41,71 @@ public struct MarketHeatmapMainHubView: View {
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(.white)
                 
-                Text("(\(viewModel.filteredTickers.count) tài sản)")
+                Text("(\(viewModel.filteredHeatmapTickers.count) tài sản)")
                     .font(.system(size: 10.5, weight: .medium, design: .monospaced))
                     .foregroundColor(.white.opacity(0.5))
             }
             
             Spacer()
             
+            // Sizing Mode Quick Switcher
+            HStack(spacing: 3) {
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        viewModel.isHeatmapSizingByVolume = false
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chart.pie.fill")
+                            .font(.system(size: 10))
+                        Text("Vốn Hóa")
+                            .font(.system(size: 11, weight: !viewModel.isHeatmapSizingByVolume ? .bold : .medium))
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(!viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.3) : Color.clear)
+                    .foregroundColor(!viewModel.isHeatmapSizingByVolume ? .white : .white.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(!viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.7) : Color.clear, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("Kích thước ô heatmap tỷ lệ theo Vốn Hóa Thị Trường (Market Cap)")
+                
+                Button(action: {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        viewModel.isHeatmapSizingByVolume = true
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 10))
+                        Text("Volume 24h")
+                            .font(.system(size: 11, weight: viewModel.isHeatmapSizingByVolume ? .bold : .medium))
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.3) : Color.clear)
+                    .foregroundColor(viewModel.isHeatmapSizingByVolume ? .white : .white.opacity(0.6))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(viewModel.isHeatmapSizingByVolume ? Color.purple.opacity(0.7) : Color.clear, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .help("Kích thước ô heatmap tỷ lệ theo Khối Lượng Giao Dịch 24h (24h Volume)")
+            }
+            .padding(2)
+            .background(AppTheme.darkCard)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6).stroke(AppTheme.darkBorder, lineWidth: 1)
+            )
+            
+            // Live Source Badges & Refresh
             HStack(spacing: 8) {
                 DataSourceBadge(type: .liveBinance, text: "Binance Realtime")
                 
@@ -64,7 +123,7 @@ public struct MarketHeatmapMainHubView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .padding(.vertical, 7)
         .background(AppTheme.darkHeaderBg)
         .overlay(
             Rectangle().fill(AppTheme.darkBorder).frame(height: 1),

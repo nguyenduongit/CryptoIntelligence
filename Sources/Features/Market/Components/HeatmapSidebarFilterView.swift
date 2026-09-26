@@ -108,7 +108,7 @@ public struct HeatmapSidebarFilterView: View {
             
             HStack(spacing: 4) {
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         viewModel.isHeatmapSizingByVolume = false
                     }
                 }) {
@@ -131,7 +131,7 @@ public struct HeatmapSidebarFilterView: View {
                 .buttonStyle(.plain)
                 
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                         viewModel.isHeatmapSizingByVolume = true
                     }
                 }) {

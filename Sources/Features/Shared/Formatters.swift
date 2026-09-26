@@ -82,6 +82,19 @@ public enum Formatters {
         }
     }
     
+    public static func formatMarketCap(_ val: Double) -> String {
+        if val.isNaN || val.isInfinite { return "$0" }
+        if val >= 1_000_000_000_000 {
+            return String(format: "$%.2fT", val / 1_000_000_000_000)
+        } else if val >= 1_000_000_000 {
+            return String(format: "$%.2fB", val / 1_000_000_000)
+        } else if val >= 1_000_000 {
+            return String(format: "$%.2fM", val / 1_000_000)
+        } else {
+            return String(format: "$%.0f", val)
+        }
+    }
+    
     public static func formatNumber(_ num: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal

@@ -184,6 +184,32 @@ public final class MarketViewModel: @unchecked Sendable {
         return list
     }
     
+    public var filteredHeatmapTickers: [MarketTicker24h] {
+        var list = tickers
+        
+        // Filter by Sector
+        if selectedSector != .all {
+            list = list.filter { $0.sector == selectedSector }
+        }
+        
+        // Filter by Search
+        if !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+            let query = searchQuery.trimmingCharacters(in: .whitespaces).uppercased()
+            list = list.filter {
+                $0.symbol.uppercased().contains(query) || $0.baseAsset.uppercased().contains(query)
+            }
+        }
+        
+        // Dynamic sorting based on Sizing Mode: Volume 24h vs Market Cap
+        if isHeatmapSizingByVolume {
+            list.sort { $0.quoteVolume > $1.quoteVolume }
+        } else {
+            list.sort { $0.estimatedMarketCap > $1.estimatedMarketCap }
+        }
+        
+        return list
+    }
+    
     public var topGainers: [MarketTicker24h] {
         tickers
             .filter { $0.quoteVolume > 100_000 }
