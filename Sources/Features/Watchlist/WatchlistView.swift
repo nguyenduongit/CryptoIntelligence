@@ -15,53 +15,59 @@ public struct WatchlistView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // Search & Filter Header
-            VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    HStack {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.4))
-                        TextField("Tìm coin (VD: BTC, ETH)...", text: $viewModel.searchText)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
-                        if !viewModel.searchText.isEmpty {
-                            Button(action: { viewModel.searchText = "" }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.white.opacity(0.4))
-                            }
-                            .buttonStyle(.plain)
+            // 1. Search Header Row (Aligned with global subHeaderHeight)
+            HStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.4))
+                    TextField("Tìm coin (VD: BTC, ETH)...", text: $viewModel.searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .foregroundColor(.white)
+                    if !viewModel.searchText.isEmpty {
+                        Button(action: { viewModel.searchText = "" }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.4))
                         }
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                    .background(AppTheme.darkCard)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(AppTheme.darkBorder, lineWidth: 1)
-                    )
-                    
-                    Button(action: {
-                        isShowingSearch = true
-                        Task { await viewModel.fetchAvailableSymbols() }
-                    }) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 12, weight: .bold))
-                            .padding(7)
-                            .background(AppTheme.accentBlue)
-                            .foregroundColor(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $isShowingSearch, arrowEdge: .bottom) {
-                        SymbolSearchPopover(viewModel: viewModel, isPresented: $isShowingSearch)
+                        .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(AppTheme.darkCard)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(AppTheme.darkBorder, lineWidth: 1)
+                )
                 
-                // Filter Pills (Tất cả, Tiers, Trạng thái)
+                Button(action: {
+                    isShowingSearch = true
+                    Task { await viewModel.fetchAvailableSymbols() }
+                }) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .bold))
+                        .padding(6)
+                        .background(AppTheme.accentBlue)
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $isShowingSearch, arrowEdge: .bottom) {
+                    SymbolSearchPopover(viewModel: viewModel, isPresented: $isShowingSearch)
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: AppTheme.subHeaderHeight)
+            .background(AppTheme.darkHeaderBg)
+            .overlay(
+                Rectangle().fill(AppTheme.darkBorder).frame(height: 1),
+                alignment: .bottom
+            )
+            
+            // 2. Filter Pills Row
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 4) {
                         FilterPill(
@@ -99,14 +105,14 @@ public struct WatchlistView: View {
                             }
                         }
                     }
-                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
             }
-            .padding(10)
             .background(AppTheme.darkSidebarBg)
-            
-            Rectangle()
-                .fill(AppTheme.darkBorder)
-                .frame(height: 1)
+            .overlay(
+                Rectangle().fill(AppTheme.darkBorder.opacity(0.6)).frame(height: 1),
+                alignment: .bottom
+            )
             
             // Watchlist Items List
             if viewModel.filteredItems.isEmpty {

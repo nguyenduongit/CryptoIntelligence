@@ -35,6 +35,10 @@ public enum AppTheme {
     public static let badgeFont = Font.system(size: 10, weight: .semibold, design: .rounded)
     public static let headerTitleFont = Font.system(size: 14, weight: .bold, design: .default)
     public static let bodyMonospaced = Font.system(size: 12, weight: .medium, design: .monospaced)
+    
+    // MARK: - Standard Layout Metrics (Unified Alignment)
+    public static let mainHeaderHeight: CGFloat = 48.0
+    public static let subHeaderHeight: CGFloat = 44.0
 }
 
 public extension Color {

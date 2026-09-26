@@ -19,9 +19,12 @@ public struct MarketScreenerMainView: View {
     }
     
     public var body: some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            VStack(spacing: 16) {
-                // 1. Radar Banner
+        VStack(spacing: 0) {
+            screenerSubHeaderBar
+            
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(spacing: 16) {
+                    // 1. Radar Banner
                 SignalRadarBannerView(summary: viewModel.summary)
                 
                 // 2. Filters Bar
@@ -88,9 +91,50 @@ public struct MarketScreenerMainView: View {
             }
             .padding(16)
         }
+    }
         .background(AppTheme.darkBackground)
         .task {
             await viewModel.loadData()
         }
+    }
+    
+    // MARK: - Unified Level 2 Sub-Header Bar (Matches ScreenerSidebarView Height)
+    private var screenerSubHeaderBar: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                    .font(.system(size: 11.5, weight: .bold))
+                    .foregroundColor(Color.yellow)
+                Text("BỘ LỌC ĐỊNH LƯỢNG & RADAR TÍN HIỆU (\(viewModel.filteredSignals.count))")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                DataSourceBadge(type: .realTimeAlgorithm, text: "Radar Tín Hiệu Live")
+                DataSourceBadge(type: .liveBinance, text: "Ticker 24h Binance")
+                
+                Button(action: {
+                    Task { await viewModel.loadData() }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Quét lại")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(AppTheme.accentBlue)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: AppTheme.subHeaderHeight)
+        .background(AppTheme.darkHeaderBg)
+        .overlay(
+            Rectangle().fill(AppTheme.darkBorder).frame(height: 1),
+            alignment: .bottom
+        )
     }
 }

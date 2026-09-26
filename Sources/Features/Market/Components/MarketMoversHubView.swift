@@ -83,7 +83,7 @@ public struct MarketMoversHubView: View {
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
+        .frame(height: AppTheme.subHeaderHeight)
         .background(AppTheme.darkHeaderBg)
         .overlay(
             Rectangle().fill(AppTheme.darkBorder).frame(height: 1),

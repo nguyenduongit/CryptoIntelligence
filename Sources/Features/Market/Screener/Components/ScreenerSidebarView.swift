@@ -113,7 +113,7 @@ public struct ScreenerSidebarView: View {
                 .clipShape(Capsule())
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .frame(height: AppTheme.subHeaderHeight)
         .background(AppTheme.darkHeaderBg)
         .overlay(
             Rectangle().fill(AppTheme.darkBorder).frame(height: 1),

@@ -93,34 +93,55 @@ private struct PlaceholderSidebar: View {
     var note: String = "Sidebar tạm thời để trống"
     
     var body: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.04))
-                    .frame(width: 54, height: 54)
-                
+        VStack(spacing: 0) {
+            // Level 2 Sub-Header Bar (Matches global subHeaderHeight)
+            HStack(spacing: 7) {
                 Image(systemName: icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(.white.opacity(0.35))
-            }
-            
-            VStack(spacing: 4) {
-                Text(title)
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white.opacity(0.75))
-                
-                Text(note)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.4))
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
+                    .foregroundColor(AppTheme.accentBlue)
+                Text(title.uppercased())
+                    .font(.system(size: 12.5, weight: .bold))
+                    .foregroundColor(.white)
+                Spacer()
             }
+            .padding(.horizontal, 12)
+            .frame(height: AppTheme.subHeaderHeight)
+            .background(AppTheme.darkHeaderBg)
+            .overlay(
+                Rectangle().fill(AppTheme.darkBorder).frame(height: 1),
+                alignment: .bottom
+            )
             
-            Spacer()
+            // Placeholder Body
+            VStack(spacing: 12) {
+                Spacer()
+                
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.04))
+                        .frame(width: 54, height: 54)
+                    
+                    Image(systemName: icon)
+                        .font(.system(size: 24))
+                        .foregroundColor(.white.opacity(0.35))
+                }
+                
+                VStack(spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white.opacity(0.75))
+                    
+                    Text(note)
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.4))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                }
+                
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(AppTheme.darkSidebarBg)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(AppTheme.darkSidebarBg)
     }
 }

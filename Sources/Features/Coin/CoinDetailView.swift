@@ -93,7 +93,7 @@ public struct CoinDetailView: View {
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 4)
+            .frame(height: AppTheme.subHeaderHeight)
             .background(AppTheme.darkHeaderBg)
             .overlay(
                 Rectangle()

@@ -9,10 +9,12 @@ public struct MarketGlobalMacroHubView: View {
     }
     
     public var body: some View {
-        Group {
+        VStack(spacing: 0) {
             if viewModel.selectedGlobalMacroSection == .valuation {
                 MarketValuationHubView(viewModel: viewModel)
             } else {
+                macroSubHeaderBar
+                
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
                         // 1. Full-Width 6-Block Macro Ticker Grid (DXY, Gold, US10Y, SPX, NDX, Oil)
@@ -71,6 +73,46 @@ public struct MarketGlobalMacroHubView: View {
             }
         }
         .background(AppTheme.darkBackground)
+    }
+    
+    // MARK: - Unified Level 2 Sub-Header Bar (Matches Sidebar Height)
+    private var macroSubHeaderBar: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: viewModel.selectedGlobalMacroSection.iconName)
+                    .font(.system(size: 11.5, weight: .bold))
+                    .foregroundColor(AppTheme.accentBlue)
+                Text(viewModel.selectedGlobalMacroSection.rawValue)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            
+            Spacer()
+            
+            HStack(spacing: 8) {
+                DataSourceBadge(type: .realTimeAlgorithm, text: "Macro Intelligence Live")
+                DataSourceBadge(type: .liveBinance, text: "US & Global Feeds")
+                
+                Button(action: {
+                    withAnimation {
+                        macroData = GlobalMacroDataProvider.shared.fetchGlobalMacroData()
+                    }
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(AppTheme.accentBlue)
+                }
+                .buttonStyle(.plain)
+                .help("Cập nhật dữ liệu vĩ mô")
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: AppTheme.subHeaderHeight)
+        .background(AppTheme.darkHeaderBg)
+        .overlay(
+            Rectangle().fill(AppTheme.darkBorder).frame(height: 1),
+            alignment: .bottom
+        )
     }
     
     // MARK: - 1. Full-Width 6-Block Macro Ticker Grid
