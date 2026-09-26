@@ -40,6 +40,10 @@ public struct SectorFlowIntelligenceView: View {
         viewModel.sectorPerformances.reduce(0) { $0 + $1.tokenCount }
     }
     
+    private var sortedSectorPerformances: [SectorPerformance] {
+        viewModel.sectorPerformances.sorted { $0.totalQuoteVolume > $1.totalQuoteVolume }
+    }
+    
     public var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             // ── 1. KPI Metric Overview Cards ──────────────────────────────────
@@ -50,7 +54,7 @@ public struct SectorFlowIntelligenceView: View {
                 segmentedAllocationSection
             }
             
-            // ── 3. Spacious Sector Cards Grid (3 Columns) ─────────────────────
+            // ── 3. Spacious Sector Cards Grid (2 Columns) ─────────────────────
             sectorCardsGrid
             
             // ── 4. Deep Dive Token Explorer for Selected Sector ───────────────
@@ -183,10 +187,10 @@ public struct SectorFlowIntelligenceView: View {
             
             // Visual Bar
             GeometryReader { geo in
-                let spacingTotal = CGFloat(max(0, viewModel.sectorPerformances.count - 1)) * 2.0
+                let spacingTotal = CGFloat(max(0, sortedSectorPerformances.count - 1)) * 2.0
                 let totalW = max(0, geo.size.width - spacingTotal)
                 HStack(spacing: 2.0) {
-                    ForEach(viewModel.sectorPerformances) { item in
+                    ForEach(sortedSectorPerformances) { item in
                         let share = totalMarketVolume > 0 ? (item.totalQuoteVolume / totalMarketVolume) : 0
                         let segW = max(5.0, totalW * CGFloat(share))
                         let isSelected = viewModel.selectedSector == item.sector
@@ -226,8 +230,8 @@ public struct SectorFlowIntelligenceView: View {
                     viewModel.selectedSector = .all
                 }
                 
-                // Each Sector Pill
-                ForEach(viewModel.sectorPerformances) { item in
+                // Each Sector Pill sorted by volume share descending
+                ForEach(sortedSectorPerformances) { item in
                     let share = totalMarketVolume > 0 ? (item.totalQuoteVolume / totalMarketVolume * 100) : 0
                     legendFilterPill(
                         title: item.sector.rawValue,
@@ -306,7 +310,7 @@ public struct SectorFlowIntelligenceView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 HStack(spacing: 6) {
-                    Image(systemName: "square.grid.3x3.fill")
+                    Image(systemName: "square.grid.2x2.fill")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(AppTheme.cyan)
                     Text("BẢNG ĐIỀU KHIỂN CHI TIẾT CÁC PHÂN KHÚC (SECTOR CARDS)")
@@ -316,20 +320,21 @@ public struct SectorFlowIntelligenceView: View {
                 
                 Spacer()
                 
-                Text("Bấm vào thẻ phân khúc để lọc chi tiết token bên dưới")
+                Text("Xếp theo % thị phần vốn giảm dần • Bấm vào thẻ để lọc danh sách bên dưới")
                     .font(.system(size: 11))
                     .foregroundColor(.white.opacity(0.45))
             }
             
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 290), spacing: 12)], spacing: 12) {
-                ForEach(viewModel.sectorPerformances) { item in
-                    spaciousSectorCard(item)
+            // Strictly 2 columns for a balanced, spacious grid (5 rows x 2 cols)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
+                ForEach(Array(sortedSectorPerformances.enumerated()), id: \.element.id) { rankIndex, item in
+                    spaciousSectorCard(item, rank: rankIndex + 1)
                 }
             }
         }
     }
     
-    private func spaciousSectorCard(_ item: SectorPerformance) -> some View {
+    private func spaciousSectorCard(_ item: SectorPerformance, rank: Int) -> some View {
         let isSelected = viewModel.selectedSector == item.sector
         let sharePercent = totalMarketVolume > 0 ? (item.totalQuoteVolume / totalMarketVolume * 100) : 0
         let isBullish = item.avgChangePercent >= 0
@@ -345,8 +350,17 @@ public struct SectorFlowIntelligenceView: View {
             }
         }) {
             VStack(alignment: .leading, spacing: 10) {
-                // Header: Icon + Title + Share Badge
+                // Header: Rank + Icon + Title + Share Badge
                 HStack(spacing: 8) {
+                    // Rank badge
+                    Text("#\(rank)")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundColor(rank <= 3 ? AppTheme.cyan : .white.opacity(0.65))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(rank <= 3 ? AppTheme.cyan.opacity(0.18) : AppTheme.darkHeaderBg)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                    
                     Circle()
                         .fill(item.sector.color.opacity(0.18))
                         .frame(width: 32, height: 32)
@@ -370,17 +384,22 @@ public struct SectorFlowIntelligenceView: View {
                     Spacer()
                     
                     VStack(alignment: .trailing, spacing: 3) {
-                        Text(String(format: "%.1f%%", sharePercent))
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundColor(item.sector.color)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2.5)
-                            .background(item.sector.color.opacity(0.18))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                        HStack(spacing: 4) {
+                            Text("Thị phần:")
+                                .font(.system(size: 10))
+                                .foregroundColor(.white.opacity(0.5))
+                            Text(String(format: "%.1f%%", sharePercent))
+                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                .foregroundColor(item.sector.color)
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(item.sector.color.opacity(0.18))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
                         
                         if isSelected {
                             Text("Đang chọn")
-                                .font(.system(size: 9, weight: .semibold))
+                                .font(.system(size: 9.5, weight: .bold))
                                 .foregroundColor(item.sector.color)
                         }
                     }
@@ -393,7 +412,7 @@ public struct SectorFlowIntelligenceView: View {
                             .font(.system(size: 9.5))
                             .foregroundColor(.white.opacity(0.45))
                         Text(Formatters.formatVolume(item.totalQuoteVolume) + " USDT")
-                            .font(.system(size: 14, weight: .bold, design: .monospaced))
+                            .font(.system(size: 14.5, weight: .bold, design: .monospaced))
                             .foregroundColor(.white)
                     }
                     
@@ -407,7 +426,7 @@ public struct SectorFlowIntelligenceView: View {
                             Image(systemName: isBullish ? "arrow.up.right" : "arrow.down.right")
                                 .font(.system(size: 9, weight: .bold))
                             Text(String(format: "%@%.2f%%", isBullish ? "+" : "", item.avgChangePercent))
-                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                .font(.system(size: 13.5, weight: .bold, design: .monospaced))
                         }
                         .foregroundColor(isBullish ? AppTheme.upGreen : AppTheme.downRed)
                     }
@@ -456,21 +475,30 @@ public struct SectorFlowIntelligenceView: View {
                     .background(AppTheme.darkBorder.opacity(0.6))
                 
                 // Top 3 Tokens preview
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     ForEach(topCoins, id: \.symbol) { coin in
                         let isCoinUp = coin.priceChangePercent >= 0
-                        HStack(spacing: 2) {
+                        HStack(spacing: 5) {
                             Text(coin.baseAsset)
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.system(size: 10.5, weight: .bold))
                                 .foregroundColor(.white)
+                            
+                            Text(Formatters.formatPrice(coin.price))
+                                .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                .foregroundColor(.white.opacity(0.65))
+                            
                             Text(String(format: "%@%.1f%%", isCoinUp ? "+" : "", coin.priceChangePercent))
-                                .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
                                 .foregroundColor(isCoinUp ? AppTheme.upGreen : AppTheme.downRed)
                         }
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2.5)
-                        .background(AppTheme.darkHeaderBg.opacity(0.7))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
+                        .background(AppTheme.darkHeaderBg.opacity(0.8))
                         .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(AppTheme.darkBorder.opacity(0.6), lineWidth: 0.8)
+                        )
                         
                         if coin.symbol != topCoins.last?.symbol {
                             Spacer(minLength: 2)
@@ -478,7 +506,7 @@ public struct SectorFlowIntelligenceView: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(14)
             .background(isSelected ? item.sector.color.opacity(0.12) : AppTheme.darkCard)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(
@@ -804,7 +832,7 @@ public struct SectorFlowIntelligenceView: View {
                 .overlay(Rectangle().fill(AppTheme.darkBorder).frame(height: 1), alignment: .bottom)
                 
                 // Rows
-                ForEach(Array(viewModel.sectorPerformances.enumerated()), id: \.element.id) { idx, item in
+                ForEach(Array(sortedSectorPerformances.enumerated()), id: \.element.id) { idx, item in
                     let share = totalMarketVolume > 0 ? (item.totalQuoteVolume / totalMarketVolume * 100) : 0
                     let status = flowStatus(for: item, sharePercent: share)
                     let isBullish = item.avgChangePercent >= 0
@@ -812,7 +840,7 @@ public struct SectorFlowIntelligenceView: View {
                     HStack(spacing: 0) {
                         Text("\(idx + 1)")
                             .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundColor(idx == 0 ? AppTheme.accentBlue : .white.opacity(0.4))
+                            .foregroundColor(idx < 3 ? AppTheme.cyan : .white.opacity(0.4))
                             .frame(width: 32, alignment: .center)
                         
                         HStack(spacing: 6) {
