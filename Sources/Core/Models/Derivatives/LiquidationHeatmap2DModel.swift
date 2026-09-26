@@ -174,6 +174,39 @@ public struct LiquidationTimeSlice: Identifiable, Sendable, Codable, Equatable {
     }
 }
 
+// MARK: - Coinglass Horizontal Liquidation Beam
+public struct LiquidationBeam: Identifiable, Sendable, Codable, Equatable {
+    public var id: String { "\(price)_\(startIndex)_\(endIndex)_\(side.rawValue)" }
+    public let price: Double
+    public let startIndex: Int      // Slice index where beam begins
+    public let endIndex: Int        // Slice index where beam terminates (when hit by price) or reaches current
+    public let volumeUSD: Double
+    public let peakIntensity: Double // 0.0 to 1.0 (determines if it glows bright yellow)
+    public let side: LiquidationSide
+    public let leverageTier: String
+    public let isSwept: Bool        // True if pierced by a candle
+    
+    public init(
+        price: Double,
+        startIndex: Int,
+        endIndex: Int,
+        volumeUSD: Double,
+        peakIntensity: Double,
+        side: LiquidationSide,
+        leverageTier: String,
+        isSwept: Bool
+    ) {
+        self.price = price
+        self.startIndex = startIndex
+        self.endIndex = endIndex
+        self.volumeUSD = volumeUSD
+        self.peakIntensity = peakIntensity
+        self.side = side
+        self.leverageTier = leverageTier
+        self.isSwept = isSwept
+    }
+}
+
 // MARK: - Full 2D Heatmap Data Model
 public struct LiquidationHeatmap2DData: Sendable, Codable, Equatable {
     public let symbol: String
@@ -185,6 +218,7 @@ public struct LiquidationHeatmap2DData: Sendable, Codable, Equatable {
     public let peakVolumeUSD: Double
     public let slices: [LiquidationTimeSlice]
     public let candles: [LiquidationCandlePoint]
+    public let beams: [LiquidationBeam]
     
     public init(
         symbol: String,
@@ -195,7 +229,8 @@ public struct LiquidationHeatmap2DData: Sendable, Codable, Equatable {
         maxPrice: Double,
         peakVolumeUSD: Double,
         slices: [LiquidationTimeSlice],
-        candles: [LiquidationCandlePoint]
+        candles: [LiquidationCandlePoint],
+        beams: [LiquidationBeam] = []
     ) {
         self.symbol = symbol
         self.exchange = exchange
@@ -206,5 +241,6 @@ public struct LiquidationHeatmap2DData: Sendable, Codable, Equatable {
         self.peakVolumeUSD = peakVolumeUSD
         self.slices = slices
         self.candles = candles
+        self.beams = beams
     }
 }

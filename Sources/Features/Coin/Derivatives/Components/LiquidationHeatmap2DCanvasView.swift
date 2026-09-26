@@ -31,6 +31,10 @@ public struct LiquidationHeatmap2DCanvasView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
+            // Authentic Coinglass Top Legend Badges
+            topLegend
+                .padding(.bottom, 6)
+            
             HStack(spacing: 6) {
                 // 1. Left Vertical Color Scale Bar
                 colorScaleBar
@@ -52,15 +56,19 @@ public struct LiquidationHeatmap2DCanvasView: View {
                             crosshairView(point: hp, size: CGSize(width: canvasW, height: canvasH))
                         }
                         
-                        // Watermark bottom-right
-                        Text("coinglass / CryptoIntelligence")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.white.opacity(0.18))
-                            .padding(8)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                            .allowsHitTesting(false)
+                        // Coinglass Watermark bottom-right matching Image 2
+                        HStack(spacing: 4) {
+                            Image(systemName: "circle.hexagongrid.fill")
+                                .font(.system(size: 10.5))
+                            Text("coinglass")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                        }
+                        .foregroundColor(.white.opacity(0.20))
+                        .padding(8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .allowsHitTesting(false)
                     }
-                    .background(Color(red: 0.05, green: 0.03, blue: 0.10))
+                    .background(Color(red: 0.08, green: 0.03, blue: 0.15))
                     .clipShape(RoundedRectangle(cornerRadius: 4))
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
@@ -87,6 +95,11 @@ public struct LiquidationHeatmap2DCanvasView: View {
                 .padding(.leading, colorBarWidth + 6)
                 .padding(.trailing, priceAxisWidth)
                 .frame(height: timeAxisHeight)
+
+            navigatorView
+                .padding(.leading, colorBarWidth + 6)
+                .padding(.trailing, priceAxisWidth)
+                .frame(height: 38)
         }
         .padding(10)
         .background(AppTheme.darkCard)
@@ -95,6 +108,29 @@ public struct LiquidationHeatmap2DCanvasView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(AppTheme.darkBorder, lineWidth: 1)
         )
+    }
+    
+    // MARK: - Coinglass Top Legend Badges
+    
+    private var topLegend: some View {
+        HStack(spacing: 18) {
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color(red: 0.38, green: 0.14, blue: 0.52))
+                    .frame(width: 8, height: 8)
+                Text("Đòn đòi nợ tích lũy")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.85))
+            }
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color(red: 0.15, green: 0.78, blue: 0.62))
+                    .frame(width: 8, height: 8)
+                Text("Siêu biểu đồ")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.85))
+            }
+        }
     }
     
     // MARK: - Left Color Scale Bar
@@ -172,6 +208,58 @@ public struct LiquidationHeatmap2DCanvasView: View {
             }
         }
     }
+
+    /// Compact price overview beneath the time axis, matching the navigator
+    /// strip used by exchange heatmaps.
+    private var navigatorView: some View {
+        GeometryReader { _ in
+            Canvas { context, size in
+                guard data.candles.count > 1 else { return }
+                let lows = data.candles.map(\.low)
+                let highs = data.candles.map(\.high)
+                let minPrice = lows.min() ?? data.minPrice
+                let span = max(1e-8, (highs.max() ?? data.maxPrice) - minPrice)
+                let points = data.candles.enumerated().map { index, candle in
+                    CGPoint(
+                        x: CGFloat(index) / CGFloat(data.candles.count - 1) * size.width,
+                        y: size.height - CGFloat((candle.close - minPrice) / span) * (size.height - 6) - 3
+                    )
+                }
+                
+                // Background tint matching Image 2
+                let bgRect = CGRect(origin: .zero, size: size)
+                context.fill(Path(bgRect), with: .color(Color(red: 0.12, green: 0.15, blue: 0.30).opacity(0.40)))
+                
+                // Price Area
+                var area = Path()
+                area.move(to: CGPoint(x: 0, y: size.height))
+                area.addLines(points)
+                area.addLine(to: CGPoint(x: size.width, y: size.height))
+                area.closeSubpath()
+                context.fill(area, with: .color(Color(red: 0.38, green: 0.52, blue: 0.95).opacity(0.22)))
+
+                // Price Line
+                var line = Path()
+                line.addLines(points)
+                context.stroke(line, with: .color(Color(red: 0.48, green: 0.62, blue: 1.0).opacity(0.80)), lineWidth: 1.2)
+
+                // Selection Box & Slider Handles [||       ||]
+                let selRect = CGRect(x: 1, y: 1, width: max(0, size.width - 2), height: size.height - 2)
+                context.stroke(Path(roundedRect: selRect, cornerRadius: 4), with: .color(Color.white.opacity(0.18)), lineWidth: 1)
+                
+                let handleW: CGFloat = 8
+                let leftHandle = CGRect(x: 1, y: 1, width: handleW, height: size.height - 2)
+                context.fill(Path(roundedRect: leftHandle, cornerRadius: 3), with: .color(Color(red: 0.20, green: 0.22, blue: 0.30)))
+                context.stroke(Path(roundedRect: leftHandle, cornerRadius: 3), with: .color(Color.white.opacity(0.4)), lineWidth: 1)
+                
+                let rightHandle = CGRect(x: size.width - handleW - 1, y: 1, width: handleW, height: size.height - 2)
+                context.fill(Path(roundedRect: rightHandle, cornerRadius: 3), with: .color(Color(red: 0.20, green: 0.22, blue: 0.30)))
+                context.stroke(Path(roundedRect: rightHandle, cornerRadius: 3), with: .color(Color.white.opacity(0.4)), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .accessibilityLabel("Bộ điều hướng dòng thời gian bản đồ thanh lý")
+    }
     
     // MARK: - Canvas Rendering Engine
     
@@ -192,27 +280,62 @@ public struct LiquidationHeatmap2DCanvasView: View {
             context.stroke(path, with: .color(Color.white.opacity(0.04)), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
         
-        // 2. Render Heatmap 2D Grid (Authentic Coinglass 2D Thermal Density Field)
+        // 2. Render Heatmap (Authentic Coinglass Horizontal Beams)
         if showHeatmapBands {
-            let numRows = max(1, data.slices.first?.bands.count ?? 55)
-            let rowH = h / CGFloat(numRows)
-            
-            for (colIdx, slice) in data.slices.enumerated() {
-                let x = CGFloat(colIdx) * colW
+            if !data.beams.isEmpty {
+                let beamH = max(2.5, min(4.5, h / 80.0))
+                let sortedBeams = data.beams.sorted { $0.peakIntensity < $1.peakIntensity }
                 
-                for band in slice.bands {
-                    // Suppress cells below user-selected liquidity threshold (reveals clean dark canvas)
-                    guard band.intensity >= liquidityThreshold else { continue }
-                    
-                    let priceRatio = (band.price - data.minPrice) / priceSpan
+                for beam in sortedBeams {
+                    guard beam.peakIntensity >= liquidityThreshold else { continue }
+                    let priceRatio = (beam.price - data.minPrice) / priceSpan
                     guard priceRatio >= 0.0 && priceRatio <= 1.0 else { continue }
                     
                     let y = (1.0 - CGFloat(priceRatio)) * h
-                    let cellColor = palette.color(for: band.intensity, threshold: liquidityThreshold)
+                    let startX = CGFloat(beam.startIndex) * colW
+                    let endX = min(w, CGFloat(beam.endIndex + 1) * colW)
+                    let beamW = max(colW * 0.8, endX - startX)
                     
-                    // Render 2D thermal density cell with smooth blending
-                    let rect = CGRect(x: x, y: y - rowH / 2.0, width: colW + 0.6, height: rowH + 0.6)
-                    context.fill(Path(rect), with: .color(cellColor.opacity(0.85)))
+                    let rect = CGRect(x: startX, y: y - beamH / 2.0, width: beamW, height: beamH)
+                    
+                    // Authentic Coinglass Color Progression:
+                    // Cool start -> emerald green mid -> brilliant yellow peak
+                    let cStart = palette.color(for: beam.peakIntensity * 0.40, threshold: 0.0)
+                    let cMid   = palette.color(for: beam.peakIntensity * 0.72, threshold: 0.0)
+                    let cPeak  = palette.color(for: beam.peakIntensity, threshold: 0.0)
+                    
+                    let grad = Gradient(stops: [
+                        .init(color: cStart.opacity(0.78), location: 0.0),
+                        .init(color: cMid.opacity(0.88), location: 0.50),
+                        .init(color: cPeak.opacity(0.96), location: 1.0)
+                    ])
+                    
+                    context.fill(
+                        Path(rect),
+                        with: .linearGradient(
+                            grad,
+                            startPoint: CGPoint(x: startX, y: y),
+                            endPoint: CGPoint(x: endX, y: y)
+                        )
+                    )
+                }
+            } else {
+                let numRows = max(1, data.slices.first?.bands.count ?? 55)
+                let rowH = h / CGFloat(numRows)
+                
+                for (colIdx, slice) in data.slices.enumerated() {
+                    let x = CGFloat(colIdx) * colW
+                    
+                    for band in slice.bands {
+                        guard band.intensity >= liquidityThreshold else { continue }
+                        let priceRatio = (band.price - data.minPrice) / priceSpan
+                        guard priceRatio >= 0.0 && priceRatio <= 1.0 else { continue }
+                        
+                        let y = (1.0 - CGFloat(priceRatio)) * h
+                        let cellColor = palette.color(for: band.intensity, threshold: liquidityThreshold)
+                        let rect = CGRect(x: x, y: y - rowH / 2.0, width: colW + 0.6, height: rowH + 0.6)
+                        context.fill(Path(rect), with: .color(cellColor.opacity(0.85)))
+                    }
                 }
             }
         }

@@ -113,7 +113,7 @@ public actor DerivativesDataProvider {
                 topTraderShortPositionPercent: futures.topTraderShortPercent
             )
             
-            let recentCandles = (try? await candleProvider.fetchHistoricalCandles(symbol: cleanSymbol, timeframe: .h1, limit: 30)) ?? []
+            let recentCandles = (try? await candleProvider.fetchHistoricalCandles(symbol: cleanSymbol, timeframe: .m5, limit: 300)) ?? []
             let heatmap2D = generateLiquidationHeatmap2D(
                 symbol: cleanSymbol,
                 currentPrice: price,
@@ -141,7 +141,7 @@ public actor DerivativesDataProvider {
         
         // 3. If curated asset, build fallback with live walls
         if supportedDerivativesAssets.contains(baseAsset) {
-            let recentCandles = (try? await candleProvider.fetchHistoricalCandles(symbol: cleanSymbol, timeframe: .h1, limit: 30)) ?? []
+            let recentCandles = (try? await candleProvider.fetchHistoricalCandles(symbol: cleanSymbol, timeframe: .m5, limit: 300)) ?? []
             let heatmap2D = generateLiquidationHeatmap2D(
                 symbol: cleanSymbol,
                 currentPrice: price,
@@ -505,6 +505,35 @@ public actor DerivativesDataProvider {
                 candlePoints.append(LiquidationCandlePoint(timestamp: t, open: cOpen, high: cHigh, low: cLow, close: cClose))
             }
         }
+
+        // Resample coarser candle history to the heatmap's display cadence.
+        // This keeps historical prices continuous while allowing the heatmap
+        // to render narrow time columns at each heatmap timeframe's cadence.
+        if candlePoints.count > 1 && candlePoints.count < count {
+            let source = candlePoints
+            var previousLowerIndex = -1
+            candlePoints = (0..<count).map { index in
+                let sourcePosition = Double(index) * Double(source.count - 1) / Double(count - 1)
+                let lowerIndex = Int(sourcePosition)
+                let upperIndex = min(source.count - 1, lowerIndex + 1)
+                let fraction = sourcePosition - Double(lowerIndex)
+                let lower = source[lowerIndex]
+                let upper = source[upperIndex]
+                func interpolate(_ a: Double, _ b: Double) -> Double { a + (b - a) * fraction }
+                let open = interpolate(lower.open, upper.open)
+                let close = interpolate(lower.close, upper.close)
+                // A source candle's full wick belongs to one resampled bar;
+                // repeating it across every sub-bar creates a solid picket fence.
+                let startsSourceCandle = lowerIndex != previousLowerIndex || index == count - 1
+                previousLowerIndex = lowerIndex
+                let high = startsSourceCandle ? max(open, max(close, lower.high)) : max(open, close)
+                let low = startsSourceCandle ? min(open, min(close, lower.low)) : min(open, close)
+                let timestamp = lower.timestamp.addingTimeInterval(
+                    upper.timestamp.timeIntervalSince(lower.timestamp) * fraction
+                )
+                return LiquidationCandlePoint(timestamp: timestamp, open: open, high: high, low: low, close: close)
+            }
+        }
         
         let allLows = candlePoints.map { $0.low }
         let allHighs = candlePoints.map { $0.high }
@@ -519,79 +548,38 @@ public actor DerivativesDataProvider {
         let maxPrice = max(sessionMax + padding, currentPrice * (1.0 + paddingRatio * 1.05))
         let priceRange = max(1e-8, maxPrice - minPrice)
         
-        let numRows = 55
+        let numRows = 96
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "dd, HH:mm"
         
-        // Calculate 2D dynamic liquidation density matrix (Time x Price)
-        // Authentic model: Liquidation pools accumulate at leverage offsets and swing pivots,
-        // and get cleared (swept) whenever price action trades through that level.
+        // Generate authentic Coinglass horizontal liquidation beams
+        let beams = generateCoinglassBeams(
+            candlePoints: candlePoints,
+            currentPrice: currentPrice,
+            scale: scale,
+            minPrice: minPrice,
+            maxPrice: maxPrice
+        )
+        
+        let sigma = priceRange * 0.008
         var sliceDensities: [[Double]] = []
         var maxPeakVolume: Double = 1_000_000.0 * scale
         
         for t in 0..<candlePoints.count {
             var densities = [Double](repeating: 0.0, count: numRows)
-            let curCandle = candlePoints[t]
-            let timeProgress = Double(t) / Double(max(1, candlePoints.count - 1))
             
-            // Major session pivots up to time t
-            let pastHighs = candlePoints[0...t].map { $0.high }
-            let pastLows = candlePoints[0...t].map { $0.low }
-            let pivotHigh = pastHighs.max() ?? curCandle.high
-            let pivotLow = pastLows.min() ?? curCandle.low
-            
-            // Liquidation targets present at time t:
-            // 1. Short liquidation clusters ABOVE price (traders who shorted)
-            let shortTargets: [(price: Double, baseVol: Double, intensity: Double, tier: String)] = [
-                (curCandle.close * 1.009, 280_000_000, 0.92, "100x"),
-                (curCandle.close * 1.019, 360_000_000, 0.88, "50x"),
-                (curCandle.close * 1.034, 450_000_000, 0.98, "25x"),
-                (pivotHigh * 1.008,       420_000_000, 0.95, "25x"),
-                (curCandle.close * 1.052, 220_000_000, 0.65, "10x")
-            ]
-            
-            // 2. Long liquidation clusters BELOW price (traders who longed)
-            let longTargets: [(price: Double, baseVol: Double, intensity: Double, tier: String)] = [
-                (curCandle.close * 0.991, 260_000_000, 0.90, "100x"),
-                (curCandle.close * 0.981, 340_000_000, 0.85, "50x"),
-                (curCandle.close * 0.966, 430_000_000, 0.96, "25x"),
-                (pivotLow * 0.992,        410_000_000, 0.94, "25x"),
-                (curCandle.close * 0.948, 210_000_000, 0.60, "10x")
-            ]
-            
-            // Evaluate each target: has price action at slice t penetrated it?
-            let sigma = priceRange * 0.018 // Gaussian kernel spread (~2 price rows)
-            
-            for target in shortTargets {
-                // Short liquidation is swept if price reaches or exceeds it
-                let isSwept = curCandle.high >= target.price
-                let vol = target.baseVol * scale * (0.80 + 0.20 * timeProgress)
-                let activeWeight = isSwept ? 0.05 : 1.0
+            // For every active beam at time t, contribute its heat to price rows
+            for beam in beams {
+                guard t >= beam.startIndex && t <= beam.endIndex else { continue }
+                let progress = Double(t - beam.startIndex) / Double(max(1, beam.endIndex - beam.startIndex))
+                let vol = beam.volumeUSD * (0.80 + 0.20 * progress)
                 
-                // Distribute heat onto rows
                 for r in 0..<numRows {
                     let rPrice = minPrice + (Double(r) + 0.5) / Double(numRows) * priceRange
-                    let dist = abs(rPrice - target.price)
-                    if dist < sigma * 3.0 {
+                    let dist = abs(rPrice - beam.price)
+                    if dist < sigma * 2.5 {
                         let gaussian = exp(-0.5 * (dist * dist) / (sigma * sigma))
-                        densities[r] += vol * activeWeight * gaussian
-                    }
-                }
-            }
-            
-            for target in longTargets {
-                // Long liquidation is swept if price reaches or drops below it
-                let isSwept = curCandle.low <= target.price
-                let vol = target.baseVol * scale * (0.80 + 0.20 * timeProgress)
-                let activeWeight = isSwept ? 0.05 : 1.0
-                
-                // Distribute heat onto rows
-                for r in 0..<numRows {
-                    let rPrice = minPrice + (Double(r) + 0.5) / Double(numRows) * priceRange
-                    let dist = abs(rPrice - target.price)
-                    if dist < sigma * 3.0 {
-                        let gaussian = exp(-0.5 * (dist * dist) / (sigma * sigma))
-                        densities[r] += vol * activeWeight * gaussian
+                        densities[r] += vol * gaussian
                     }
                 }
             }
@@ -656,8 +644,185 @@ public actor DerivativesDataProvider {
             maxPrice: maxPrice,
             peakVolumeUSD: maxPeakVolume,
             slices: slices,
-            candles: candlePoints
+            candles: candlePoints,
+            beams: beams
         )
+    }
+    
+    // MARK: - Coinglass Horizontal Liquidation Beams Generator
+    private nonisolated func generateCoinglassBeams(
+        candlePoints: [LiquidationCandlePoint],
+        currentPrice: Double,
+        scale: Double,
+        minPrice: Double,
+        maxPrice: Double
+    ) -> [LiquidationBeam] {
+        guard !candlePoints.isEmpty else { return [] }
+        let count = candlePoints.count
+        var rawBeams: [(price: Double, startIndex: Int, baseVol: Double, peakIntensity: Double, side: LiquidationSide, tier: String)] = []
+        
+        let firstClose = candlePoints[0].close
+        let priceSpan = maxPrice - minPrice
+        
+        // 1. Baseline horizontal levels at session start (t = 0)
+        // Coinglass shows liquidation levels across the price ladder that accumulated before this window
+        let baselineOffsets: [(offset: Double, vol: Double, intensity: Double, tier: String, side: LiquidationSide)] = [
+            (0.009, 32_000_000, 0.88, "100x", .shortLiquidation),
+            (0.016, 38_000_000, 0.90, "50x",  .shortLiquidation),
+            (0.024, 28_000_000, 0.76, "50x",  .shortLiquidation),
+            (0.033, 48_000_000, 0.98, "25x",  .shortLiquidation), // Major yellow trap
+            (0.042, 30_000_000, 0.78, "25x",  .shortLiquidation),
+            (0.055, 18_000_000, 0.55, "10x",  .shortLiquidation),
+            (0.068, 14_000_000, 0.42, "10x",  .shortLiquidation),
+            
+            (-0.009, 30_000_000, 0.87, "100x", .longLiquidation),
+            (-0.016, 36_000_000, 0.91, "50x",  .longLiquidation),
+            (-0.025, 26_000_000, 0.74, "50x",  .longLiquidation),
+            (-0.034, 52_000_000, 1.00, "25x",  .longLiquidation), // Major yellow trap
+            (-0.043, 32_000_000, 0.80, "25x",  .longLiquidation),
+            (-0.056, 20_000_000, 0.58, "10x",  .longLiquidation),
+            (-0.070, 15_000_000, 0.45, "10x",  .longLiquidation)
+        ]
+        
+        for b in baselineOffsets {
+            let p = firstClose * (1.0 + b.offset)
+            if p >= minPrice && p <= maxPrice {
+                rawBeams.append((price: p, startIndex: 0, baseVol: b.vol, peakIntensity: b.intensity, side: b.side, tier: b.tier))
+            }
+        }
+        
+        // 2. Identify local swing pivots to spawn new liquidation clusters along the timeline
+        if count >= 3 {
+            for i in 1..<(count - 1) {
+                let prev = candlePoints[i - 1]
+                let curr = candlePoints[i]
+                let next = candlePoints[i + 1]
+                
+                // Local swing high -> traders place short stop-loss / short liquidations above it
+                if curr.high > prev.high && curr.high >= next.high {
+                    let p100 = curr.high * 1.009
+                    let p50 = curr.high * 1.018
+                    let p25 = curr.high * 1.032
+                    if p100 <= maxPrice {
+                        rawBeams.append((p100, i, 22_000_000, 0.82, .shortLiquidation, "100x"))
+                    }
+                    if p50 <= maxPrice {
+                        rawBeams.append((p50, i, 34_000_000, 0.89, .shortLiquidation, "50x"))
+                    }
+                    if p25 <= maxPrice {
+                        rawBeams.append((p25, i, 44_000_000, 0.96, .shortLiquidation, "25x"))
+                    }
+                }
+                
+                // Local swing low -> traders place long stop-loss / long liquidations below it
+                if curr.low < prev.low && curr.low <= next.low {
+                    let p100 = curr.low * 0.991
+                    let p50 = curr.low * 0.982
+                    let p25 = curr.low * 0.968
+                    if p100 >= minPrice {
+                        rawBeams.append((p100, i, 21_000_000, 0.80, .longLiquidation, "100x"))
+                    }
+                    if p50 >= minPrice {
+                        rawBeams.append((p50, i, 33_000_000, 0.87, .longLiquidation, "50x"))
+                    }
+                    if p25 >= minPrice {
+                        rawBeams.append((p25, i, 46_000_000, 0.97, .longLiquidation, "25x"))
+                    }
+                }
+            }
+        }
+        
+        // 3. Staggered baseline levels across the price range (fills the heatmap ladder like Coinglass)
+        let numLadderSteps = 45
+        for s in 0...numLadderSteps {
+            let p = minPrice + (Double(s) + 0.5) / Double(numLadderSteps) * priceSpan
+            let distFromCur = abs(p - currentPrice) / currentPrice
+            let startSlice: Int
+            if s % 5 == 0 {
+                startSlice = 0
+            } else if s % 4 == 0 {
+                startSlice = max(0, count / 5)
+            } else if s % 3 == 0 {
+                startSlice = max(0, count / 3)
+            } else if s % 2 == 0 {
+                startSlice = max(0, count / 2)
+            } else {
+                startSlice = max(0, (count * 2) / 3)
+            }
+            
+            let tier: String
+            let baseVol: Double
+            let intensity: Double
+            if distFromCur <= 0.014 {
+                tier = "100x"
+                baseVol = 20_000_000
+                intensity = 0.72
+            } else if distFromCur <= 0.028 {
+                tier = "50x"
+                baseVol = 32_000_000
+                intensity = 0.85
+            } else if distFromCur <= 0.048 {
+                tier = "25x"
+                baseVol = 40_000_000
+                intensity = 0.92
+            } else {
+                tier = "10x"
+                baseVol = 15_000_000
+                intensity = 0.48
+            }
+            
+            let side: LiquidationSide = p >= currentPrice ? .shortLiquidation : .longLiquidation
+            rawBeams.append((price: p, startIndex: startSlice, baseVol: baseVol, peakIntensity: intensity, side: side, tier: tier))
+        }
+        
+        // 4. Sweep simulation & Beam construction
+        var finalBeams: [LiquidationBeam] = []
+        
+        for raw in rawBeams {
+            let start = raw.startIndex
+            guard start < count else { continue }
+            
+            var end = count - 1
+            var isSwept = false
+            
+            if raw.side == .shortLiquidation {
+                // Short liquidation swept if price high reaches or exceeds price
+                for t in (start + 1)..<count {
+                    if candlePoints[t].high >= raw.price {
+                        end = t
+                        isSwept = true
+                        break
+                    }
+                }
+            } else {
+                // Long liquidation swept if price low reaches or drops below price
+                for t in (start + 1)..<count {
+                    if candlePoints[t].low <= raw.price {
+                        end = t
+                        isSwept = true
+                        break
+                    }
+                }
+            }
+            
+            // Only keep beams with positive length
+            guard end > start else { continue }
+            
+            let vol = raw.baseVol * scale
+            
+            finalBeams.append(LiquidationBeam(
+                price: raw.price,
+                startIndex: start,
+                endIndex: end,
+                volumeUSD: vol,
+                peakIntensity: raw.peakIntensity,
+                side: raw.side,
+                leverageTier: raw.tier,
+                isSwept: isSwept
+            ))
+        }
+        
+        return finalBeams
     }
     
     private func calculateOpenInterest(baseAsset: String, currentPrice: Double) -> (Double, Double, Double, Double) {
