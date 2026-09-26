@@ -183,11 +183,12 @@ public struct SectorFlowIntelligenceView: View {
             
             // Visual Bar
             GeometryReader { geo in
-                let totalW = geo.size.width
-                HStack(spacing: 2.5) {
+                let spacingTotal = CGFloat(max(0, viewModel.sectorPerformances.count - 1)) * 2.0
+                let totalW = max(0, geo.size.width - spacingTotal)
+                HStack(spacing: 2.0) {
                     ForEach(viewModel.sectorPerformances) { item in
-                        let share = item.totalQuoteVolume / totalMarketVolume
-                        let segW = max(6.0, totalW * CGFloat(share))
+                        let share = totalMarketVolume > 0 ? (item.totalQuoteVolume / totalMarketVolume) : 0
+                        let segW = max(5.0, totalW * CGFloat(share))
                         let isSelected = viewModel.selectedSector == item.sector
                         
                         Button(action: {
@@ -211,38 +212,36 @@ public struct SectorFlowIntelligenceView: View {
             }
             .frame(height: 14)
             
-            // Legend Chips Row
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 6) {
-                    // All Pill
+            // Legend Chips Multi-Row Responsive Grid (No horizontal scrolling)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 155), spacing: 8)], spacing: 8) {
+                // All Pill
+                legendFilterPill(
+                    title: "Tất Cả",
+                    icon: "square.grid.2x2.fill",
+                    color: AppTheme.accentBlue,
+                    sharePercent: 100.0,
+                    volume: totalMarketVolume,
+                    isSelected: viewModel.selectedSector == .all
+                ) {
+                    viewModel.selectedSector = .all
+                }
+                
+                // Each Sector Pill
+                ForEach(viewModel.sectorPerformances) { item in
+                    let share = totalMarketVolume > 0 ? (item.totalQuoteVolume / totalMarketVolume * 100) : 0
                     legendFilterPill(
-                        title: "Tất Cả",
-                        icon: "square.grid.2x2.fill",
-                        color: AppTheme.accentBlue,
-                        sharePercent: 100.0,
-                        volume: totalMarketVolume,
-                        isSelected: viewModel.selectedSector == .all
+                        title: item.sector.rawValue,
+                        icon: item.sector.iconName,
+                        color: item.sector.color,
+                        sharePercent: share,
+                        volume: item.totalQuoteVolume,
+                        isSelected: viewModel.selectedSector == item.sector
                     ) {
-                        viewModel.selectedSector = .all
-                    }
-                    
-                    // Each Sector Pill
-                    ForEach(viewModel.sectorPerformances) { item in
-                        let share = totalMarketVolume > 0 ? (item.totalQuoteVolume / totalMarketVolume * 100) : 0
-                        legendFilterPill(
-                            title: item.sector.rawValue,
-                            icon: item.sector.iconName,
-                            color: item.sector.color,
-                            sharePercent: share,
-                            volume: item.totalQuoteVolume,
-                            isSelected: viewModel.selectedSector == item.sector
-                        ) {
-                            viewModel.selectedSector = (viewModel.selectedSector == item.sector ? .all : item.sector)
-                        }
+                        viewModel.selectedSector = (viewModel.selectedSector == item.sector ? .all : item.sector)
                     }
                 }
-                .padding(.vertical, 2)
             }
+            .padding(.top, 2)
         }
         .padding(14)
         .background(AppTheme.darkCard)
@@ -267,30 +266,34 @@ public struct SectorFlowIntelligenceView: View {
                 action()
             }
         }) {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 Circle()
                     .fill(color)
-                    .frame(width: 7, height: 7)
+                    .frame(width: 7.5, height: 7.5)
                 
                 Text(title)
                     .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                    .foregroundColor(isSelected ? .white : .white.opacity(0.75))
+                    .foregroundColor(isSelected ? .white : .white.opacity(0.85))
+                    .lineLimit(1)
+                
+                Spacer(minLength: 4)
                 
                 Text(String(format: "%.1f%%", sharePercent))
-                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                    .foregroundColor(isSelected ? color : .white.opacity(0.45))
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(color.opacity(isSelected ? 0.25 : 0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(isSelected ? color : .white.opacity(0.7))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(color.opacity(isSelected ? 0.25 : 0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 3.5))
             }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .background(isSelected ? color.opacity(0.18) : AppTheme.darkHeaderBg.opacity(0.7))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(isSelected ? color.opacity(0.18) : AppTheme.darkHeaderBg.opacity(0.65))
             .clipShape(RoundedRectangle(cornerRadius: 6))
             .overlay(
                 RoundedRectangle(cornerRadius: 6)
-                    .stroke(isSelected ? color.opacity(0.8) : AppTheme.darkBorder.opacity(0.6), lineWidth: isSelected ? 1.5 : 1)
+                    .stroke(isSelected ? color.opacity(0.85) : AppTheme.darkBorder.opacity(0.6), lineWidth: isSelected ? 1.5 : 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: 6))
         }
