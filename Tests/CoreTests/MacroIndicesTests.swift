@@ -192,7 +192,8 @@ struct MacroIndicesTests {
         #expect(modes.contains(.highVolatility))
         #expect(modes.contains(.newListings))
         
-        #expect(MarketValuationSection.allCases.count == 2)
+        #expect(MarketValuationSection.allCases.count == 3)
+        #expect(MarketValuationSection.allCases.contains(.sectorFlow))
         #expect(GlobalMacroSection.allCases.count == 7)
         #expect(GlobalMacroSection.allCases.contains(.valuation))
         #expect(ScreenerPresetSelection.allCases.count == 6)

@@ -35,7 +35,15 @@ public struct ShellView: View {
                         )
                         
                     case .globalMacro:
-                        MarketGlobalMacroHubView(viewModel: marketVM)
+                        MarketGlobalMacroHubView(
+                            viewModel: marketVM,
+                            onSelectSymbol: { sym in
+                                selectedSymbol = sym
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    router.selectedTab = .coin
+                                }
+                            }
+                        )
                         
                     case .market:
                         MarketHubView(

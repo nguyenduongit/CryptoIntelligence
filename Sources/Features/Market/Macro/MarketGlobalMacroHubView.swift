@@ -2,16 +2,18 @@ import SwiftUI
 
 public struct MarketGlobalMacroHubView: View {
     @Bindable var viewModel: MarketViewModel
+    public var onSelectSymbol: ((String) -> Void)? = nil
     @State private var macroData: GlobalMacroOverviewData = GlobalMacroDataProvider.shared.fetchGlobalMacroData()
     
-    public init(viewModel: MarketViewModel) {
+    public init(viewModel: MarketViewModel, onSelectSymbol: ((String) -> Void)? = nil) {
         self.viewModel = viewModel
+        self.onSelectSymbol = onSelectSymbol
     }
     
     public var body: some View {
         VStack(spacing: 0) {
             if viewModel.selectedGlobalMacroSection == .valuation {
-                MarketValuationHubView(viewModel: viewModel)
+                MarketValuationHubView(viewModel: viewModel, onSelectSymbol: onSelectSymbol)
             } else {
                 macroSubHeaderBar
                 

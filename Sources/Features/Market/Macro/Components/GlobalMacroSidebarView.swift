@@ -154,7 +154,7 @@ public struct GlobalMacroSidebarView: View {
     private func sectionSubtitle(_ sec: GlobalMacroSection) -> String {
         switch sec {
         case .all: return "Bao quát toàn cảnh các chỉ báo"
-        case .valuation: return "TOTAL, TOTAL2, BTC.D & Mùa Altcoin"
+        case .valuation: return "TOTAL, Dòng tiền phân khúc & Mùa Altcoin"
         case .centralBanks: return "Lãi suất Fed, ECB, BOJ, PBOC"
         case .inflation: return "Chỉ số CPI, Core PCE, Việc làm"
         case .intermarket: return "DXY, Vàng, S&P 500, US10Y"

@@ -318,17 +318,27 @@ public final class MarketViewModel: @unchecked Sendable {
     }
 }
 
-// MARK: - MarketValuationSection (still used by Macro tab)
+// MARK: - MarketValuationSection (used by Macro tab)
 public enum MarketValuationSection: String, CaseIterable, Identifiable, Sendable {
     case overview = "Tổng quan"
+    case sectorFlow = "Dòng tiền phân khúc"
     case kline = "Biểu đồ"
 
     public var id: String { rawValue }
 
+    public var displayName: String {
+        switch self {
+        case .overview:   return "Tổng Quan Vốn Hóa & Tỷ Trọng"
+        case .sectorFlow: return "Phân Bổ Vốn & Dòng Tiền Phân Khúc"
+        case .kline:      return "Biểu Đồ Nến K-Line Chỉ Số"
+        }
+    }
+
     public var iconName: String {
         switch self {
-        case .overview: return "chart.pie.fill"
-        case .kline:    return "chart.line.uptrend.xyaxis"
+        case .overview:   return "chart.pie.fill"
+        case .sectorFlow: return "circle.grid.cross.fill"
+        case .kline:      return "chart.line.uptrend.xyaxis"
         }
     }
 }

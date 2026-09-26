@@ -2,13 +2,15 @@ import SwiftUI
 
 public struct MarketValuationHubView: View {
     @Bindable var viewModel: MarketViewModel
+    public var onSelectSymbol: ((String) -> Void)? = nil
     
     @State private var snapshots: [MacroIndexSnapshot] = []
     @State private var seasonReport: MarketSeasonReport? = nil
     @State private var isLoading: Bool = false
     
-    public init(viewModel: MarketViewModel) {
+    public init(viewModel: MarketViewModel, onSelectSymbol: ((String) -> Void)? = nil) {
         self.viewModel = viewModel
+        self.onSelectSymbol = onSelectSymbol
     }
     
     public var body: some View {
@@ -19,7 +21,7 @@ public struct MarketValuationHubView: View {
             // 2. Scrollable Content Area
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    if isLoading && snapshots.isEmpty {
+                    if isLoading && snapshots.isEmpty && viewModel.sectorPerformances.isEmpty {
                         VStack(spacing: 12) {
                             ProgressView().controlSize(.large)
                             Text("Đang tổng hợp dữ liệu vốn hóa và tính toán chỉ số...")
@@ -33,6 +35,9 @@ public struct MarketValuationHubView: View {
                             if let report = seasonReport {
                                 MacroValuationCorrelationView(snapshots: snapshots, seasonReport: report)
                             }
+                            
+                        case .sectorFlow:
+                            SectorFlowIntelligenceView(viewModel: viewModel, onSelectSymbol: onSelectSymbol)
                             
                         case .kline:
                             MacroIndexKLineChartView(
@@ -65,7 +70,7 @@ public struct MarketValuationHubView: View {
                         HStack(spacing: 5) {
                             Image(systemName: sec.iconName)
                                 .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                            Text(sec.rawValue == "Tổng quan" ? "Tổng Quan Vốn Hóa & Tỷ Trọng" : "Biểu Đồ Nến K-Line Chỉ Số")
+                            Text(sec.displayName)
                                 .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
                         }
                         .padding(.horizontal, 11)
@@ -117,6 +122,9 @@ public struct MarketValuationHubView: View {
     
     private func loadMacroData() {
         isLoading = true
+        if viewModel.tickers.isEmpty {
+            viewModel.loadData()
+        }
         Task { @MainActor in
             async let sFetch = MacroIndicesDataProvider.shared.fetchMacroSnapshots()
             async let rFetch = MacroIndicesDataProvider.shared.fetchSeasonReport()
