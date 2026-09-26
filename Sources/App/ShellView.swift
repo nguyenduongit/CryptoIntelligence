@@ -33,12 +33,42 @@ public struct ShellView: View {
                             watchlistVM: watchlistVM,
                             router: router
                         )
-                    case .market:
-                        MarketOverviewView(
+                        
+                    case .heatmap:
+                        MarketHeatmapMainHubView(
+                            viewModel: marketVM,
+                            onSelectSymbol: { sym in
+                                selectedSymbol = sym
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    router.selectedTab = .coin
+                                }
+                            }
+                        )
+                        
+                    case .valuation:
+                        MarketValuationHubView(viewModel: marketVM)
+                        
+                    case .globalMacro:
+                        MarketGlobalMacroHubView(viewModel: marketVM)
+                        
+                    case .movers:
+                        MarketMoversHubView(
+                            viewModel: marketVM,
+                            onSelectSymbol: { sym in
+                                selectedSymbol = sym
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    router.selectedTab = .coin
+                                }
+                            }
+                        )
+                        
+                    case .screener:
+                        MarketScreenerMainView(
                             router: router,
                             selectedSymbol: $selectedSymbol,
-                            viewModel: marketVM
+                            selectedPreset: marketVM.selectedScreenerPreset
                         )
+                        
                     case .settings:
                         SettingsView(router: router)
                     }

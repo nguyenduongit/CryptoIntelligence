@@ -49,31 +49,36 @@ public struct HeaderBarView: View {
             
             // Right Column: Main Tabs + Settings Gear
             HStack(spacing: 6) {
-                ForEach([MainTab.coin, .market], id: \.self) { tab in
-                    Button(action: { router.selectedTab = tab }) {
-                        HStack(spacing: 6) {
-                            tabIcon(for: tab)
-                                .font(.system(size: 12))
-                            Text(tab.rawValue)
-                                .font(.system(size: 13, weight: router.selectedTab == tab ? .semibold : .medium))
+                ForEach([MainTab.coin, .heatmap, .valuation, .globalMacro, .movers, .screener], id: \.self) { tab in
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            router.selectedTab = tab
                         }
-                        .padding(.horizontal, 12)
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: tab.iconName)
+                                .font(.system(size: 12))
+                                .foregroundColor(router.selectedTab == tab ? tabColor(tab) : .white.opacity(0.6))
+                            Text(tab.rawValue)
+                                .font(.system(size: 12.5, weight: router.selectedTab == tab ? .semibold : .medium))
+                        }
+                        .padding(.horizontal, 11)
                         .padding(.vertical, 6)
                         .background(
                             router.selectedTab == tab
-                            ? AppTheme.darkCard
+                            ? tabColor(tab).opacity(0.18)
                             : Color.clear
                         )
                         .foregroundColor(
                             router.selectedTab == tab
                             ? .white
-                            : .white.opacity(0.6)
+                            : .white.opacity(0.65)
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
                                 .stroke(
-                                    router.selectedTab == tab ? AppTheme.accentBlue.opacity(0.5) : Color.clear,
+                                    router.selectedTab == tab ? tabColor(tab).opacity(0.5) : Color.clear,
                                     lineWidth: 1
                                 )
                         )
@@ -115,12 +120,15 @@ public struct HeaderBarView: View {
         )
     }
     
-    @ViewBuilder
-    private func tabIcon(for tab: MainTab) -> some View {
+    private func tabColor(_ tab: MainTab) -> Color {
         switch tab {
-        case .coin: Image(systemName: "bitcoinsign.circle")
-        case .market: Image(systemName: "globe.asia.australia.fill")
-        case .settings: Image(systemName: "gearshape.fill")
+        case .coin: return AppTheme.accentBlue
+        case .heatmap: return Color.purple
+        case .valuation: return AppTheme.cyan
+        case .globalMacro: return AppTheme.accentBlue
+        case .movers: return AppTheme.upGreen
+        case .screener: return Color.yellow
+        case .settings: return AppTheme.accentBlue
         }
     }
 }

@@ -1,12 +1,28 @@
 import SwiftUI
 import Observation
 
-public enum MainTab: String, CaseIterable, Identifiable {
+public enum MainTab: String, CaseIterable, Identifiable, Sendable {
     case coin = "Nghiên cứu"
-    case market = "Thị trường"
+    case heatmap = "Heatmap"
+    case valuation = "Vốn hóa"
+    case globalMacro = "Kinh tế vĩ mô"
+    case movers = "Top biến động"
+    case screener = "Radar"
     case settings = "Cài đặt"
     
     public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .coin: return "chart.candlestick.fill"
+        case .heatmap: return "square.grid.3x3.fill"
+        case .valuation: return "chart.pie.fill"
+        case .globalMacro: return "globe.americas.fill"
+        case .movers: return "flame.fill"
+        case .screener: return "dot.radiowaves.left.and.right"
+        case .settings: return "gearshape.fill"
+        }
+    }
 }
 
 public enum CoinSubtab: String, CaseIterable, Identifiable {

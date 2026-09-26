@@ -27,14 +27,36 @@ public struct SidebarContainerView: View {
                     switch router.selectedTab {
                     case .coin:
                         WatchlistView(viewModel: watchlistVM, selectedSymbol: $selectedSymbol)
-                    case .market:
+                        
+                    case .heatmap:
                         if let marketVM {
-                            MarketSidebarView(viewModel: marketVM)
+                            HeatmapSidebarFilterView(viewModel: marketVM)
                         } else {
-                            PlaceholderSidebar(title: "Bộ lọc Thị trường", icon: "globe.asia.australia.fill")
+                            PlaceholderSidebar(title: "Bộ Lọc Heatmap", icon: "square.grid.3x3.fill", note: "Đang tải bộ lọc bản đồ...")
                         }
+                        
+                    case .valuation:
+                        PlaceholderSidebar(title: "Vốn Hóa & Tỷ Trọng", icon: "chart.pie.fill", note: "Sidebar phân hệ vốn hóa tạm thời để trống theo thiết kế")
+                        
+                    case .globalMacro:
+                        if let marketVM {
+                            GlobalMacroSidebarView(viewModel: marketVM)
+                        } else {
+                            PlaceholderSidebar(title: "Kinh Tế Vĩ Mô", icon: "globe.americas.fill", note: "Đang tải dữ liệu...")
+                        }
+                        
+                    case .movers:
+                        PlaceholderSidebar(title: "Top Biến Động", icon: "flame.fill", note: "Sidebar phân hệ biến động tạm thời để trống theo thiết kế")
+                        
+                    case .screener:
+                        if let marketVM {
+                            ScreenerSidebarView(viewModel: marketVM)
+                        } else {
+                            PlaceholderSidebar(title: "Radar Tín Hiệu", icon: "dot.radiowaves.left.and.right", note: "Đang tải dữ liệu...")
+                        }
+                        
                     case .settings:
-                        PlaceholderSidebar(title: "Cài đặt Chung", icon: "gearshape.fill")
+                        PlaceholderSidebar(title: "Cài Đặt Hệ Thống", icon: "gearshape.fill", note: "Tuỳ chọn cấu hình ứng dụng")
                     }
                 }
                 .frame(width: router.sidebarWidth)
@@ -78,19 +100,34 @@ public struct SidebarContainerView: View {
 private struct PlaceholderSidebar: View {
     let title: String
     let icon: String
+    var note: String = "Sidebar tạm thời để trống"
     
     var body: some View {
         VStack(spacing: 12) {
             Spacer()
-            Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundColor(.white.opacity(0.3))
-            Text(title)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.6))
-            Text("Không có mục nào")
-                .font(.system(size: 11))
-                .foregroundColor(.white.opacity(0.4))
+            
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.04))
+                    .frame(width: 54, height: 54)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 24))
+                    .foregroundColor(.white.opacity(0.35))
+            }
+            
+            VStack(spacing: 4) {
+                Text(title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white.opacity(0.75))
+                
+                Text(note)
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.4))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+            }
+            
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
