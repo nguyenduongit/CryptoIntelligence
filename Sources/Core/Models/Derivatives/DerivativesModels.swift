@@ -220,6 +220,7 @@ public struct DerivativesProfile: Identifiable, Sendable, Codable, Equatable {
     public let symbol: String
     public let baseAsset: String
     public let heatmapData: LiquidationHeatmapData
+    public let heatmap2D: LiquidationHeatmap2DData?
     public let exchangeFundingRates: [FundingRateItem]
     public let fundingHistory: [FundingRateHistoryPoint]
     public let openInterest: OpenInterestMetrics
@@ -230,6 +231,7 @@ public struct DerivativesProfile: Identifiable, Sendable, Codable, Equatable {
         symbol: String,
         baseAsset: String,
         heatmapData: LiquidationHeatmapData,
+        heatmap2D: LiquidationHeatmap2DData? = nil,
         exchangeFundingRates: [FundingRateItem],
         fundingHistory: [FundingRateHistoryPoint],
         openInterest: OpenInterestMetrics,
@@ -239,6 +241,7 @@ public struct DerivativesProfile: Identifiable, Sendable, Codable, Equatable {
         self.symbol = symbol
         self.baseAsset = baseAsset
         self.heatmapData = heatmapData
+        self.heatmap2D = heatmap2D
         self.exchangeFundingRates = exchangeFundingRates
         self.fundingHistory = fundingHistory
         self.openInterest = openInterest

@@ -126,4 +126,51 @@ struct DerivativesAdvancedTests {
             try await provider.fetchDerivativesProfile(for: "UNKNOWNCOINUSDT")
         }
     }
+    
+    @Test("Test LiquidationHeatmap2D generation and properties")
+    func testLiquidationHeatmap2DGeneration() {
+        let provider = DerivativesDataProvider.shared
+        let heatmap2D = provider.generateLiquidationHeatmap2D(
+            symbol: "BTCUSDT",
+            currentPrice: 84_000.0,
+            baseAsset: "BTC",
+            timeframe: .hours24
+        )
+        
+        #expect(heatmap2D.symbol == "BTCUSDT")
+        #expect(heatmap2D.currentPrice == 84_000.0)
+        #expect(heatmap2D.slices.count == 24)
+        #expect(heatmap2D.candles.count == 24)
+        #expect(heatmap2D.minPrice < 84_000.0)
+        #expect(heatmap2D.maxPrice > 84_000.0)
+        #expect(heatmap2D.peakVolumeUSD > 0)
+        
+        if let firstSlice = heatmap2D.slices.first {
+            #expect(!firstSlice.bands.isEmpty)
+            #expect(firstSlice.bands.contains(where: { $0.leverageTier == "100x" }))
+            #expect(firstSlice.bands.contains(where: { $0.leverageTier == "25x" }))
+        }
+    }
+    
+    @Test("Test LiquidationHeatmapPalette interpolation")
+    func testLiquidationHeatmapPalette() {
+        let palette = LiquidationHeatmapPalette.coinglass
+        #expect(palette.previewColors.count == 4)
+        
+        let c0 = palette.color(for: 0.0)
+        let cMax = palette.color(for: 1.0)
+        #expect(c0 != cMax)
+        
+        let cSuppressed = palette.color(for: 0.1, threshold: 0.5)
+        #expect(cSuppressed == palette.previewColors[0].opacity(0.15))
+    }
+    
+    @Test("Test CryptoSector colors coverage")
+    func testCryptoSectorColors() {
+        for s in CryptoSector.allCases {
+            _ = s.color
+            #expect(!s.rawValue.isEmpty)
+        }
+    }
 }
+

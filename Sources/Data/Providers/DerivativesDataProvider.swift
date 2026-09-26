@@ -93,10 +93,21 @@ public actor DerivativesDataProvider {
                 topTraderShortPositionPercent: futures.topTraderShortPercent
             )
             
+            let recentCandles = (try? await candleProvider.fetchHistoricalCandles(symbol: cleanSymbol, timeframe: .h1, limit: 30)) ?? []
+            let heatmap2D = generateLiquidationHeatmap2D(
+                symbol: cleanSymbol,
+                currentPrice: price,
+                baseAsset: baseAsset,
+                openInterestUSD: futures.openInterestUSD,
+                historicalCandles: recentCandles,
+                timeframe: .hours24
+            )
+            
             return DerivativesProfile(
                 symbol: cleanSymbol,
                 baseAsset: baseAsset,
                 heatmapData: heatmapData,
+                heatmap2D: heatmap2D,
                 exchangeFundingRates: fundingRates,
                 fundingHistory: futures.history.isEmpty ? [
                     FundingRateHistoryPoint(dateLabel: "Live", rate8hPercent: futures.currentFunding8h, priceUSD: price)
@@ -108,12 +119,21 @@ public actor DerivativesDataProvider {
         
         // 3. If curated asset, build fallback with live walls
         if supportedDerivativesAssets.contains(baseAsset) {
-            var profile = buildDerivativesProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price)
+            let recentCandles = (try? await candleProvider.fetchHistoricalCandles(symbol: cleanSymbol, timeframe: .h1, limit: 30)) ?? []
+            let heatmap2D = generateLiquidationHeatmap2D(
+                symbol: cleanSymbol,
+                currentPrice: price,
+                baseAsset: baseAsset,
+                historicalCandles: recentCandles,
+                timeframe: .hours24
+            )
+            var profile = buildDerivativesProfile(baseAsset: baseAsset, symbol: cleanSymbol, currentPrice: price, heatmap2D: heatmap2D)
             if !liveWalls.isEmpty {
                 profile = DerivativesProfile(
                     symbol: profile.symbol,
                     baseAsset: profile.baseAsset,
                     heatmapData: profile.heatmapData,
+                    heatmap2D: heatmap2D,
                     exchangeFundingRates: profile.exchangeFundingRates,
                     fundingHistory: profile.fundingHistory,
                     openInterest: profile.openInterest,
@@ -184,11 +204,19 @@ public actor DerivativesDataProvider {
         )
         
         let orderbookWalls = generateOrderbookWalls(currentPrice: currentPrice, baseAsset: baseAsset)
+        let heatmap2D = generateLiquidationHeatmap2D(
+            symbol: symbol,
+            currentPrice: currentPrice,
+            baseAsset: baseAsset,
+            openInterestUSD: oiUSD,
+            timeframe: .hours24
+        )
         
         return DerivativesProfile(
             symbol: symbol,
             baseAsset: baseAsset,
             heatmapData: heatmapData,
+            heatmap2D: heatmap2D,
             exchangeFundingRates: fundingRates,
             fundingHistory: history.isEmpty ? [
                 FundingRateHistoryPoint(dateLabel: "Live", rate8hPercent: funding8h, priceUSD: currentPrice)
@@ -198,7 +226,7 @@ public actor DerivativesDataProvider {
         )
     }
     
-    private func buildDerivativesProfile(baseAsset: String, symbol: String, currentPrice: Double) -> DerivativesProfile {
+    private func buildDerivativesProfile(baseAsset: String, symbol: String, currentPrice: Double, heatmap2D: LiquidationHeatmap2DData? = nil) -> DerivativesProfile {
         // 1. Build Liquidation Clusters
         let (clusters, totalLong, totalShort, maxPain, shortSqueeze, longSqueeze) = generateLiquidationClusters(currentPrice: currentPrice, baseAsset: baseAsset)
         
@@ -291,6 +319,7 @@ public actor DerivativesDataProvider {
             symbol: symbol,
             baseAsset: baseAsset,
             heatmapData: heatmapData,
+            heatmap2D: heatmap2D,
             exchangeFundingRates: fundingRates,
             fundingHistory: fundingHistory,
             openInterest: openInterest,
@@ -390,6 +419,133 @@ public actor DerivativesDataProvider {
         
         let maxPain = (peakShortPrice + peakLongPrice) / 2.0
         return (clusters, totalLongUSD, totalShortUSD, maxPain, peakShortPrice, peakLongPrice)
+    }
+    
+    // MARK: - 2D Liquidation Heatmap Matrix Generator
+    public nonisolated func generateLiquidationHeatmap2D(
+        symbol: String,
+        currentPrice: Double,
+        baseAsset: String,
+        openInterestUSD: Double? = nil,
+        historicalCandles: [Candle] = [],
+        timeframe: LiquidationTimeframe = .hours24
+    ) -> LiquidationHeatmap2DData {
+        let count = timeframe.sliceCount
+        let scale: Double
+        if let oi = openInterestUSD, oi > 0 {
+            scale = min(2.5, max(0.01, oi / 30_000_000_000.0))
+        } else {
+            scale = baseAsset == "BTC" ? 1.0 : (baseAsset == "ETH" ? 0.35 : 0.15)
+        }
+        
+        var candlePoints: [LiquidationCandlePoint] = []
+        let now = Date()
+        let intervalSec = timeframe.intervalHours * 3600.0
+        
+        if historicalCandles.count >= count {
+            let sliceCandles = historicalCandles.suffix(count)
+            for c in sliceCandles {
+                candlePoints.append(LiquidationCandlePoint(
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(c.openTime) / 1000.0),
+                    open: c.open,
+                    high: c.high,
+                    low: c.low,
+                    close: c.close
+                ))
+            }
+        } else {
+            var prevClose = currentPrice * 0.985
+            for i in (0..<count).reversed() {
+                let t = now.addingTimeInterval(-Double(i) * intervalSec)
+                let noise = sin(Double(i) * 0.4) * 0.008 + cos(Double(i) * 0.2) * 0.005
+                let open = prevClose
+                let close = (i == 0) ? currentPrice : open * (1.0 + noise)
+                let high = max(open, close) * (1.0 + abs(noise) * 0.5)
+                let low = min(open, close) * (1.0 - abs(noise) * 0.5)
+                candlePoints.append(LiquidationCandlePoint(timestamp: t, open: open, high: high, low: low, close: close))
+                prevClose = close
+            }
+        }
+        
+        let allLows = candlePoints.map { $0.low }
+        let allHighs = candlePoints.map { $0.high }
+        let minTrajectoryPrice = allLows.min() ?? (currentPrice * 0.95)
+        let maxTrajectoryPrice = allHighs.max() ?? (currentPrice * 1.05)
+        
+        let minPrice = min(minTrajectoryPrice * 0.94, currentPrice * 0.92)
+        let maxPrice = max(maxTrajectoryPrice * 1.06, currentPrice * 1.08)
+        
+        let tierConfigs: [(percent: Double, tier: String, baseVol: Double, intensity: Double, side: LiquidationSide)] = [
+            (+1.0, "100x", 125_000_000, 0.95, .shortLiquidation),
+            (+2.0, "50x",  240_000_000, 0.88, .shortLiquidation),
+            (+3.5, "25x",  420_000_000, 1.00, .shortLiquidation),
+            (+5.0, "20x",  290_000_000, 0.75, .shortLiquidation),
+            (+7.5, "10x",  195_000_000, 0.60, .shortLiquidation),
+            (+10.0, "5x",  120_000_000, 0.42, .shortLiquidation),
+            
+            (-1.0, "100x", 115_000_000, 0.92, .longLiquidation),
+            (-2.0, "50x",  210_000_000, 0.85, .longLiquidation),
+            (-3.2, "25x",  390_000_000, 0.98, .longLiquidation),
+            (-5.0, "20x",  260_000_000, 0.70, .longLiquidation),
+            (-7.5, "10x",  180_000_000, 0.55, .longLiquidation),
+            (-10.0, "5x",  105_000_000, 0.38, .longLiquidation)
+        ]
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "dd, HH:mm"
+        
+        var slices: [LiquidationTimeSlice] = []
+        var maxPeakVolume = 10_000_000.0 * scale
+        
+        for (idx, candle) in candlePoints.enumerated() {
+            var bands: [LiquidationPriceBand] = []
+            
+            let subsequentHigh = candlePoints[idx...].map { $0.high }.max() ?? candle.high
+            let subsequentLow = candlePoints[idx...].map { $0.low }.min() ?? candle.low
+            
+            for cfg in tierConfigs {
+                let bandPrice = candle.close * (1.0 + cfg.percent / 100.0)
+                let vol = cfg.baseVol * scale * (0.85 + Double((idx + cfg.tier.count) % 5) * 0.08)
+                maxPeakVolume = max(maxPeakVolume, vol)
+                
+                let isSwept: Bool
+                if cfg.side == .shortLiquidation {
+                    isSwept = subsequentHigh >= bandPrice
+                } else {
+                    isSwept = subsequentLow <= bandPrice
+                }
+                
+                let effectiveIntensity = isSwept ? (cfg.intensity * 0.2) : cfg.intensity
+                
+                bands.append(LiquidationPriceBand(
+                    price: bandPrice,
+                    volumeUSD: vol,
+                    intensity: effectiveIntensity,
+                    side: cfg.side,
+                    leverageTier: cfg.tier,
+                    isSwept: isSwept
+                ))
+            }
+            
+            slices.append(LiquidationTimeSlice(
+                timestamp: candle.timestamp,
+                timeLabel: dateFormatter.string(from: candle.timestamp),
+                candle: candle,
+                bands: bands
+            ))
+        }
+        
+        return LiquidationHeatmap2DData(
+            symbol: symbol,
+            exchange: "Binance Futures Perpetual",
+            timeframe: timeframe,
+            currentPrice: currentPrice,
+            minPrice: minPrice,
+            maxPrice: maxPrice,
+            peakVolumeUSD: maxPeakVolume,
+            slices: slices,
+            candles: candlePoints
+        )
     }
     
     private func calculateOpenInterest(baseAsset: String, currentPrice: Double) -> (Double, Double, Double, Double) {

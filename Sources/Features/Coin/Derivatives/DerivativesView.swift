@@ -67,8 +67,12 @@ public struct DerivativesView: View {
                         OpenInterestSentimentCardView(metrics: profile.openInterest)
                         
                     case "heatmap":
-                        // 1. Full Liquidation Heatmap
-                        LiquidationHeatmapCardView(data: profile.heatmapData)
+                        // 1. Full Liquidation Heatmap (2D Canvas Coinglass + 1D Clusters)
+                        LiquidationHeatmapCardView(
+                            data: profile.heatmapData,
+                            heatmap2D: profile.heatmap2D,
+                            symbol: symbol
+                        )
                         
                         // 2. Quick Targets
                         LiquidationHuntRadarCardView(data: profile.heatmapData)
@@ -78,7 +82,11 @@ public struct DerivativesView: View {
                         LiquidationHuntRadarCardView(data: profile.heatmapData)
                         
                         // 2. Heatmap Visualizer
-                        LiquidationHeatmapCardView(data: profile.heatmapData)
+                        LiquidationHeatmapCardView(
+                            data: profile.heatmapData,
+                            heatmap2D: profile.heatmap2D,
+                            symbol: symbol
+                        )
                         
                     case "orderbook":
                         // Institutional Orderbook Depth Walls

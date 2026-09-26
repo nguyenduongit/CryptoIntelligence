@@ -112,6 +112,7 @@ public final class MarketViewModel: @unchecked Sendable {
     public var selectedSector: CryptoSector = .all
     public var searchQuery: String = ""
     public var sortBy: MarketSortOption = .volume24h
+    public var isSectorFlowExpanded: Bool = true
     
     // MARK: Table Sort
     public var tableSortColumn: MarketTableSortColumn = .volume

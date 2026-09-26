@@ -16,6 +16,15 @@ public struct MarketHubView: View {
             // ── Level 2 Sub-Header (unified 44pt height) ─────────────────
             marketSubHeader
 
+            // ── Sector Capital Allocation & Flow Widget ──────────────────
+            if viewModel.isSectorFlowExpanded && !viewModel.sectorPerformances.isEmpty {
+                SectorCapitalAllocationView(viewModel: viewModel)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+
             // ── Full Market Table ─────────────────────────────────────────
             MarketTableView(viewModel: viewModel, onSelectSymbol: onSelectSymbol)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -93,6 +102,33 @@ public struct MarketHubView: View {
                 RoundedRectangle(cornerRadius: 5)
                     .stroke(AppTheme.accentBlue.opacity(0.25), lineWidth: 1)
             )
+
+            // Sector flow toggle button
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    viewModel.isSectorFlowExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chart.pie.fill")
+                        .font(.system(size: 10.5))
+                    Text("Dòng Tiền")
+                        .font(.system(size: 11, weight: .semibold))
+                    Image(systemName: viewModel.isSectorFlowExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8.5, weight: .bold))
+                }
+                .foregroundColor(viewModel.isSectorFlowExpanded ? AppTheme.cyan : .white.opacity(0.7))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(viewModel.isSectorFlowExpanded ? AppTheme.cyan.opacity(0.12) : AppTheme.darkCard)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(viewModel.isSectorFlowExpanded ? AppTheme.cyan.opacity(0.4) : AppTheme.darkBorder, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
+            .help("Bật/tắt widget phân bổ vốn & dòng tiền phân khúc")
 
             // Auto-refresh countdown
             autoRefreshBadge
