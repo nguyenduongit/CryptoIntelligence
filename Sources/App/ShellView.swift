@@ -37,8 +37,8 @@ public struct ShellView: View {
                     case .globalMacro:
                         MarketGlobalMacroHubView(viewModel: marketVM)
                         
-                    case .movers:
-                        MarketMoversHubView(
+                    case .market:
+                        MarketHubView(
                             viewModel: marketVM,
                             onSelectSymbol: { sym in
                                 selectedSymbol = sym

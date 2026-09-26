@@ -4,7 +4,7 @@ import Observation
 public enum MainTab: String, CaseIterable, Identifiable, Sendable {
     case coin = "Nghiên cứu"
     case globalMacro = "Kinh tế vĩ mô"
-    case movers = "Top biến động"
+    case market = "Thị Trường"
     case screener = "Radar"
     case settings = "Cài đặt"
     
@@ -14,7 +14,7 @@ public enum MainTab: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .coin: return "chart.candlestick.fill"
         case .globalMacro: return "globe.americas.fill"
-        case .movers: return "flame.fill"
+        case .market: return "chart.bar.fill"
         case .screener: return "dot.radiowaves.left.and.right"
         case .settings: return "gearshape.fill"
         }

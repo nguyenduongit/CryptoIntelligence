@@ -35,8 +35,12 @@ public struct SidebarContainerView: View {
                             PlaceholderSidebar(title: "Kinh Tế Vĩ Mô", icon: "globe.americas.fill", note: "Đang tải dữ liệu...")
                         }
                         
-                    case .movers:
-                        PlaceholderSidebar(title: "Top Biến Động", icon: "flame.fill", note: "Sidebar phân hệ biến động tạm thời để trống theo thiết kế")
+                    case .market:
+                        if let marketVM {
+                            MarketSidebarView(viewModel: marketVM)
+                        } else {
+                            PlaceholderSidebar(title: "Thị Trường", icon: "chart.bar.fill", note: "Đang tải dữ liệu...")
+                        }
                         
                     case .screener:
                         if let marketVM {
