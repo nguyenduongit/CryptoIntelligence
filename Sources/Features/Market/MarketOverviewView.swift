@@ -44,8 +44,10 @@ public struct MarketOverviewView: View {
             // 3. Main View Mode Content (Full Height, Uncluttered)
             Group {
                 switch viewModel.selectedViewMode {
-                case .macro:
-                    MacroHubView()
+                case .valuation:
+                    MarketValuationHubView(viewModel: viewModel)
+                case .globalMacro:
+                    MarketGlobalMacroHubView(viewModel: viewModel)
                 case .heatmap:
                     MarketHeatmapView(
                         tickers: viewModel.filteredTickers,
@@ -108,68 +110,68 @@ public struct MarketOverviewView: View {
                                 .font(.system(size: 11, weight: isSelected ? .bold : .medium))
                                 .foregroundColor(isSelected ? .white : .white.opacity(0.7))
                         }
-                        .padding(.horizontal, 9)
+                        .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(isSelected ? AppTheme.accentBlue.opacity(0.18) : Color.clear)
+                        .background(
+                            isSelected ? AppTheme.accentBlue.opacity(0.18) : Color.clear
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
-                                .stroke(isSelected ? AppTheme.accentBlue.opacity(0.45) : Color.clear, lineWidth: 1)
+                                .stroke(isSelected ? AppTheme.accentBlue.opacity(0.6) : Color.clear, lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(3)
-            .background(AppTheme.darkCard.opacity(0.6))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .padding(2)
+            .background(AppTheme.darkCard)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 7)
                     .stroke(AppTheme.darkBorder, lineWidth: 1)
             )
             
-            Spacer(minLength: 8)
+            Spacer()
             
-            // MARK: - Single Unified Refresh Button
-            Button(action: { viewModel.loadData() }) {
-                HStack(spacing: 5) {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .controlSize(.mini)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 10, weight: .semibold))
-                    }
-                    Text("Làm mới")
-                        .font(.system(size: 11, weight: .medium))
+            // Refresh & Time status
+            HStack(spacing: 8) {
+                if let last = viewModel.lastRefreshedAt {
+                    Text("Cập nhật: \(formatTime(last))")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundColor(.white.opacity(0.4))
                 }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(AppTheme.darkCard)
-                .foregroundColor(.white.opacity(0.85))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(AppTheme.darkBorder, lineWidth: 1)
-                )
+                
+                Button(action: {
+                    viewModel.loadData()
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(AppTheme.accentBlue)
+                        .rotationEffect(.degrees(viewModel.isLoading ? 360 : 0))
+                        .animation(viewModel.isLoading ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: viewModel.isLoading)
+                }
+                .buttonStyle(.plain)
+                .help("Làm mới dữ liệu thị trường (Cmd+R)")
             }
-            .buttonStyle(.plain)
-            .disabled(viewModel.isLoading)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .background(AppTheme.darkHeaderBg)
         .overlay(
-            Rectangle()
-                .fill(AppTheme.darkBorder)
-                .frame(height: 1),
+            Rectangle().fill(AppTheme.darkBorder).frame(height: 1),
             alignment: .bottom
         )
+    }
+    
+    private func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss"
+        return formatter.string(from: date)
     }
     
     private func navigateToCoin(symbol: String) {
         selectedSymbol = symbol
         router.selectedTab = .coin
-        router.selectedSubtab = .chart
     }
 }

@@ -1,8 +1,9 @@
 import SwiftUI
 import Observation
 
-public enum MarketViewMode: String, CaseIterable, Identifiable {
-    case macro = "Vĩ mô"
+public enum MarketViewMode: String, CaseIterable, Identifiable, Sendable {
+    case valuation = "Vốn hóa"
+    case globalMacro = "Kinh tế"
     case heatmap = "Bản đồ"
     case sectors = "Phân khúc"
     case movers = "Biến động"
@@ -12,11 +13,88 @@ public enum MarketViewMode: String, CaseIterable, Identifiable {
     
     public var iconName: String {
         switch self {
-        case .macro: return "globe.americas.fill"
+        case .valuation: return "chart.pie.fill"
+        case .globalMacro: return "globe.americas.fill"
         case .heatmap: return "square.grid.3x3.fill"
-        case .sectors: return "chart.pie.fill"
+        case .sectors: return "square.stack.3d.up.fill"
         case .movers: return "flame.fill"
         case .screener: return "line.3.horizontal.decrease.circle.fill"
+        }
+    }
+}
+
+public enum MarketValuationSection: String, CaseIterable, Identifiable, Sendable {
+    case overview = "Tổng Quan & Tương Quan"
+    case kline = "Biểu Đồ K-Line"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .overview: return "chart.pie.fill"
+        case .kline: return "chart.line.uptrend.xyaxis"
+        }
+    }
+}
+
+public enum GlobalMacroSection: String, CaseIterable, Identifiable, Sendable {
+    case all = "Toàn Cảnh Vĩ Mô"
+    case centralBanks = "Ngân Hàng Trung Ương & Lãi Suất"
+    case inflation = "Lạm Phát & Việc Làm"
+    case intermarket = "Tương Quan Liên Thị Trường"
+    case liquidityM2 = "Cung Tiền M2 & Thanh Khoản"
+    case calendar = "Lịch Sự Kiện Kinh Tế"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .all: return "globe.americas.fill"
+        case .centralBanks: return "building.columns.fill"
+        case .inflation: return "gauge.with.dots.needle.50percent"
+        case .intermarket: return "arrow.triangle.swap"
+        case .liquidityM2: return "waveform.path.ecg"
+        case .calendar: return "calendar"
+        }
+    }
+}
+
+public enum MoversCategorySelection: String, CaseIterable, Identifiable, Sendable {
+    case all = "Tất Cả Bảng Xếp Hạng"
+    case gainers = "Top 15 Tăng Giá (+%)"
+    case losers = "Top 15 Giảm Giá (-%)"
+    case volume = "Top 15 Khối Lượng (Vol)"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .all: return "list.bullet.rectangle.fill"
+        case .gainers: return "arrow.up.right.circle.fill"
+        case .losers: return "arrow.down.right.circle.fill"
+        case .volume: return "chart.bar.fill"
+        }
+    }
+}
+
+public enum ScreenerPresetSelection: String, CaseIterable, Identifiable, Sendable {
+    case all = "Tất Cả Tín Hiệu"
+    case breakout = "Bứt Phá Đỉnh Giá"
+    case oversold = "Quá Bán Sâu (RSI < 30)"
+    case whale = "Gom Hàng Cá Voi / Vol Spike"
+    case goldenCross = "Giao Cắt Vàng (MA Cross)"
+    case largeCap = "Top 50 Vốn Hóa Lớn"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .all: return "line.3.horizontal.decrease.circle.fill"
+        case .breakout: return "arrow.up.forward.app.fill"
+        case .oversold: return "arrow.down.to.line.compact"
+        case .whale: return "flame.fill"
+        case .goldenCross: return "arrow.triangle.swap"
+        case .largeCap: return "crown.fill"
         }
     }
 }
@@ -32,10 +110,19 @@ public enum MarketSortOption: String, CaseIterable, Identifiable {
 
 @Observable
 public final class MarketViewModel: @unchecked Sendable {
-    public var selectedViewMode: MarketViewMode = .heatmap
+    public var selectedViewMode: MarketViewMode = .valuation
     public var selectedSector: CryptoSector = .all
     public var searchQuery: String = ""
     public var sortBy: MarketSortOption = .volume24h
+    
+    // Dedicated Navigation States
+    public var selectedValuationSection: MarketValuationSection = .overview
+    public var selectedMacroIndex: MacroIndexType = .total
+    public var selectedKLineTimeframe: String = "1D"
+    public var selectedGlobalMacroSection: GlobalMacroSection = .all
+    public var selectedMoversCategory: MoversCategorySelection = .all
+    public var selectedScreenerPreset: ScreenerPresetSelection = .all
+    public var isHeatmapSizingByVolume: Bool = false
     
     public var tickers: [MarketTicker24h] = []
     public var globalMetrics: MarketGlobalMetrics? = nil

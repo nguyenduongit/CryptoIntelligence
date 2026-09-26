@@ -1,14 +1,21 @@
 import SwiftUI
 
 public struct MacroIndexKLineChartView: View {
-    @State private var selectedIndex: MacroIndexType = .total
-    @State private var selectedTimeframe: String = "1d"
+    @Binding var selectedIndex: MacroIndexType
+    @Binding var selectedTimeframe: String
+    
     @State private var candles: [MacroIndexCandle] = []
     @State private var isLoading: Bool = false
     
     private let timeframes = ["1h", "4h", "1d", "1w"]
     
-    public init() {}
+    public init(
+        selectedIndex: Binding<MacroIndexType> = .constant(.total),
+        selectedTimeframe: Binding<String> = .constant("1d")
+    ) {
+        self._selectedIndex = selectedIndex
+        self._selectedTimeframe = selectedTimeframe
+    }
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -53,11 +60,11 @@ public struct MacroIndexKLineChartView: View {
                             loadCandles()
                         }) {
                             Text(tf.uppercased())
-                                .font(.system(size: 11, weight: selectedTimeframe == tf ? .bold : .medium, design: .monospaced))
+                                .font(.system(size: 11, weight: selectedTimeframe.lowercased() == tf ? .bold : .medium, design: .monospaced))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(selectedTimeframe == tf ? Color.white.opacity(0.15) : Color.clear)
-                                .foregroundColor(selectedTimeframe == tf ? .white : .white.opacity(0.5))
+                                .background(selectedTimeframe.lowercased() == tf ? Color.white.opacity(0.15) : Color.clear)
+                                .foregroundColor(selectedTimeframe.lowercased() == tf ? .white : .white.opacity(0.5))
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                         .buttonStyle(.plain)
@@ -200,6 +207,12 @@ public struct MacroIndexKLineChartView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.darkBorder, lineWidth: 1))
         .onAppear {
+            loadCandles()
+        }
+        .onChange(of: selectedIndex) { _, _ in
+            loadCandles()
+        }
+        .onChange(of: selectedTimeframe) { _, _ in
             loadCandles()
         }
     }
