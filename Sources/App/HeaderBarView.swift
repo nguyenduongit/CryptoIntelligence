@@ -49,7 +49,7 @@ public struct HeaderBarView: View {
             
             // Right Column: Main Tabs + Settings Gear
             HStack(spacing: 6) {
-                ForEach([MainTab.coin, .heatmap, .valuation, .globalMacro, .movers, .screener], id: \.self) { tab in
+                ForEach([MainTab.coin, .valuation, .globalMacro, .movers, .screener], id: \.self) { tab in
                     Button(action: {
                         withAnimation(.easeInOut(duration: 0.15)) {
                             router.selectedTab = tab
@@ -123,7 +123,6 @@ public struct HeaderBarView: View {
     private func tabColor(_ tab: MainTab) -> Color {
         switch tab {
         case .coin: return AppTheme.accentBlue
-        case .heatmap: return Color.purple
         case .valuation: return AppTheme.cyan
         case .globalMacro: return AppTheme.accentBlue
         case .movers: return AppTheme.upGreen

@@ -28,13 +28,6 @@ public struct SidebarContainerView: View {
                     case .coin:
                         WatchlistView(viewModel: watchlistVM, selectedSymbol: $selectedSymbol)
                         
-                    case .heatmap:
-                        if let marketVM {
-                            HeatmapSidebarFilterView(viewModel: marketVM)
-                        } else {
-                            PlaceholderSidebar(title: "Bộ Lọc Heatmap", icon: "square.grid.3x3.fill", note: "Đang tải bộ lọc bản đồ...")
-                        }
-                        
                     case .valuation:
                         PlaceholderSidebar(title: "Vốn Hóa & Tỷ Trọng", icon: "chart.pie.fill", note: "Sidebar phân hệ vốn hóa tạm thời để trống theo thiết kế")
                         

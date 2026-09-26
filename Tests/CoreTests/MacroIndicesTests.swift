@@ -183,15 +183,13 @@ struct MacroIndicesTests {
     @Test("Test Market Navigation Enums and View Modes")
     func testMarketNavigationViewModes() {
         let modes = MarketViewMode.allCases
-        #expect(modes.count == 5)
+        #expect(modes.count == 4)
         #expect(modes.contains(.valuation))
         #expect(modes.contains(.globalMacro))
-        #expect(modes.contains(.heatmap))
         #expect(modes.contains(.movers))
         #expect(modes.contains(.screener))
         
         #expect(MarketValuationSection.allCases.count == 2)
-        #expect(MarketHeatmapSection.allCases.count == 2)
         #expect(GlobalMacroSection.allCases.count == 6)
         #expect(MoversCategorySelection.allCases.count == 4)
         #expect(ScreenerPresetSelection.allCases.count == 6)
@@ -199,7 +197,6 @@ struct MacroIndicesTests {
         let vm = MarketViewModel()
         #expect(vm.selectedViewMode == .valuation)
         #expect(vm.selectedValuationSection == .overview)
-        #expect(vm.selectedHeatmapSection == .heatmap)
         #expect(vm.selectedMacroIndex == .total)
         #expect(vm.selectedGlobalMacroSection == .all)
     }

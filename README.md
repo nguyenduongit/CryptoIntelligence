@@ -32,7 +32,7 @@ CryptoIntelligence/
 │   ├── Hồ Sơ Dự Án (Tech Architecture, Github Activity, Team)
 │   ├── Bảo Mật & Pháp Lý (Audit Score, Contract Risk)
 │   └── Ghi Chú Cá Nhân (Research Journal & Thesis)
-├── 2. 🌐 Thị Trường & Screener (Market Screener, Macro & Heatmap)
+├── 2. 🌐 Phân Hệ Thị Trường (Vốn Hóa, Kinh Tế Vĩ Mô, Top Biến Động, Radar Screener)
 └── 3. ⚙️ Cài Đặt Hệ Thống (Settings, Database Maintenance, API Keys)
 ```
 

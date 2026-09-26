@@ -3,7 +3,6 @@ import Observation
 
 public enum MainTab: String, CaseIterable, Identifiable, Sendable {
     case coin = "Nghiên cứu"
-    case heatmap = "Heatmap"
     case valuation = "Vốn hóa"
     case globalMacro = "Kinh tế vĩ mô"
     case movers = "Top biến động"
@@ -15,7 +14,6 @@ public enum MainTab: String, CaseIterable, Identifiable, Sendable {
     public var iconName: String {
         switch self {
         case .coin: return "chart.candlestick.fill"
-        case .heatmap: return "square.grid.3x3.fill"
         case .valuation: return "chart.pie.fill"
         case .globalMacro: return "globe.americas.fill"
         case .movers: return "flame.fill"

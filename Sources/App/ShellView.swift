@@ -34,17 +34,6 @@ public struct ShellView: View {
                             router: router
                         )
                         
-                    case .heatmap:
-                        MarketHeatmapMainHubView(
-                            viewModel: marketVM,
-                            onSelectSymbol: { sym in
-                                selectedSymbol = sym
-                                withAnimation(.easeInOut(duration: 0.15)) {
-                                    router.selectedTab = .coin
-                                }
-                            }
-                        )
-                        
                     case .valuation:
                         MarketValuationHubView(viewModel: marketVM)
                         
