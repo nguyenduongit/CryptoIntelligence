@@ -28,7 +28,7 @@ public struct CryptoBubblesView: View {
         GeometryReader { proxy in
             let size = proxy.size
             
-            TimelineView(.animation) { timeline in
+            TimelineView(.animation(paused: !engine.isSimulating)) { timeline in
                 ZStack {
                     // Deep Dark Space Background with subtle vignette
                     RadialGradient(
@@ -176,7 +176,7 @@ public struct CryptoBubblesView: View {
                                     .frame(height: 26)
                                 }
                                 .buttonStyle(.plain)
-                                .help("Tái sắp xếp và làm mới vị trí các bong bóng")
+                                .help("Tái sắp xếp và phân bổ lại vị trí các bong bóng")
                             }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 4)
@@ -190,7 +190,9 @@ public struct CryptoBubblesView: View {
                     }
                 }
                 .onChange(of: timeline.date) { _, _ in
-                    engine.step(dt: 0.016)
+                    if engine.isSimulating {
+                        engine.step(dt: 0.016)
+                    }
                 }
             }
             .onAppear {
@@ -210,7 +212,7 @@ public struct CryptoBubblesView: View {
     }
 }
 
-// MARK: - Bubble Item View (Matches CryptoBubbles.net visual style)
+// MARK: - Ultra-Performant Bubble Item View (Zero GPU Bottleneck)
 private struct BubbleItemView: View {
     let node: BubbleNode
     let metric: BubbleSizingMetric
@@ -226,11 +228,19 @@ private struct BubbleItemView: View {
         
         Button(action: onSelect) {
             ZStack {
-                // 1. Outer Glow Shadow
+                // 1. Subtle Outer Glow Ring (Fast CoreGraphics shadow, NO multi-pass blur)
                 Circle()
-                    .fill(rimColor.opacity(isHovered ? 0.45 : 0.22))
-                    .frame(width: diameter + 8, height: diameter + 8)
-                    .blur(radius: isHovered ? 9 : 4)
+                    .stroke(
+                        rimColor.opacity(isHovered ? 0.9 : (isDragging ? 0.8 : 0.45)),
+                        lineWidth: isHovered ? 3.0 : (node.radius > 45 ? 2.2 : 1.6)
+                    )
+                    .frame(width: diameter, height: diameter)
+                    .shadow(
+                        color: rimColor.opacity(isHovered ? 0.75 : 0.35),
+                        radius: isHovered ? 7 : (node.radius > 50 ? 4 : 2),
+                        x: 0,
+                        y: 0
+                    )
                 
                 // 2. Bubble Body with Dark Glass Radial Gradient
                 Circle()
@@ -250,27 +260,12 @@ private struct BubbleItemView: View {
                             endRadius: node.radius
                         )
                     )
-                    .frame(width: diameter, height: diameter)
-                    .overlay(
-                        Circle()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        rimColor,
-                                        rimColor.opacity(0.85),
-                                        rimColor.opacity(0.4)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: isHovered ? 3.0 : (node.radius > 45 ? 2.2 : 1.6)
-                            )
-                    )
+                    .frame(width: diameter - 2, height: diameter - 2)
                 
                 // 3. Information Content inside Bubble
                 VStack(spacing: contentSpacing) {
                     // Mini Icon / Logo Token Initial (only on medium/large bubbles)
-                    if node.radius >= 38 {
+                    if node.radius >= 40 {
                         ZStack {
                             Circle()
                                 .fill(Color.white.opacity(0.14))
@@ -287,14 +282,14 @@ private struct BubbleItemView: View {
                         .font(.system(size: symbolFontSize, weight: .black, design: .rounded))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.65)
+                        .minimumScaleFactor(0.70)
                     
                     // % Price Change (clean format, never truncates with ..)
                     Text(formattedChange)
                         .font(.system(size: percentFontSize, weight: .bold, design: .monospaced))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.65)
+                        .minimumScaleFactor(0.70)
                     
                     // Secondary Metric (Vốn hóa, Volume hoặc Giá - only on large bubbles)
                     if node.radius >= 52 {
@@ -302,15 +297,13 @@ private struct BubbleItemView: View {
                             .font(.system(size: subMetricFontSize, weight: .medium, design: .monospaced))
                             .foregroundColor(.white.opacity(0.8))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                            .minimumScaleFactor(0.75)
                     }
                 }
-                .padding(3)
-                .frame(width: diameter * 0.88, height: diameter * 0.88)
+                .padding(2)
+                .frame(width: diameter * 0.86, height: diameter * 0.86)
             }
-            .scaleEffect(isDragging ? 1.12 : (isHovered ? 1.08 : 1.0))
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isHovered)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isDragging)
+            .scaleEffect(isDragging ? 1.10 : (isHovered ? 1.07 : 1.0))
         }
         .buttonStyle(.plain)
         .contentShape(Circle())
@@ -323,11 +316,11 @@ private struct BubbleItemView: View {
     }
     
     private var percentFontSize: CGFloat {
-        max(9.0, min(18.0, node.radius * 0.30))
+        max(9.0, min(17.5, node.radius * 0.29))
     }
     
     private var subMetricFontSize: CGFloat {
-        max(8.0, min(11.5, node.radius * 0.20))
+        max(8.0, min(11.5, node.radius * 0.19))
     }
     
     private var iconSize: CGFloat {
@@ -335,8 +328,8 @@ private struct BubbleItemView: View {
     }
     
     private var contentSpacing: CGFloat {
-        if node.radius > 55 { return 3.5 }
-        if node.radius > 40 { return 2.0 }
+        if node.radius > 55 { return 3.0 }
+        if node.radius > 40 { return 1.5 }
         return 1.0
     }
     

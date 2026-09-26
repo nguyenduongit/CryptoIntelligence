@@ -5,13 +5,20 @@ import Observation
 public final class BubblePhysicsEngine: @unchecked Sendable {
     public var bubbles: [BubbleNode] = []
     public var bounds: CGSize = .zero
+    public var isSimulating: Bool = true
     
     private var simulationTime: Double = 0
-    private let padding: CGFloat = 4.0
+    private var sleepCounter: Int = 0
+    private let padding: CGFloat = 3.5
     
     public init() {}
     
-    // MARK: - Update Data & Recompute Dynamic Radii
+    public func wake() {
+        isSimulating = true
+        sleepCounter = 0
+    }
+    
+    // MARK: - Update Data & Recompute Dynamic Radii with True Graduated Distribution
     public func update(
         with tickers: [MarketTicker24h],
         metric: BubbleSizingMetric,
@@ -19,6 +26,7 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
     ) {
         guard canvasSize.width > 50 && canvasSize.height > 50 && !tickers.isEmpty else { return }
         self.bounds = canvasSize
+        self.wake()
         
         let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
         let existingMap = Dictionary(uniqueKeysWithValues: bubbles.map { ($0.id, $0) })
@@ -26,31 +34,31 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
         // 1. Calculate dynamic min and max radius so bubbles FILL the viewport nicely
         let canvasArea = Double(canvasSize.width * canvasSize.height)
         let bubbleCount = max(1, tickers.count)
-        // Target ~56% of total canvas area covered by bubbles
-        let targetTotalArea = canvasArea * 0.56
+        // Target ~54% of total canvas area covered by bubbles
+        let targetTotalArea = canvasArea * 0.54
         let meanTargetArea = targetTotalArea / Double(bubbleCount)
         let meanR = sqrt(meanTargetArea / Double.pi)
         
-        let dynamicMinRadius = max(27.0, min(52.0, meanR * 0.65))
-        let dynamicMaxRadius = max(70.0, min(145.0, meanR * 2.4))
+        let dynamicMinRadius = max(24.0, min(42.0, meanR * 0.58))
+        let dynamicMaxRadius = max(70.0, min(140.0, meanR * 2.35))
         
-        // 2. Extract values for scaling
-        let values: [Double] = tickers.map { t in
+        // 2. Hybrid Rank-Decay + Logarithmic Value Normalization
+        // Eliminates the issue where only BTC/ETH are big and all others look identical
+        let n = Double(max(1, tickers.count))
+        let logValues: [Double] = tickers.map { t in
             switch metric {
             case .marketCap:
-                return max(1_000, t.estimatedMarketCap)
+                return log10(max(10_000_000, t.estimatedMarketCap))
             case .volume24h:
-                return max(1_000, t.quoteVolume)
+                return log10(max(100_000, t.quoteVolume))
             case .priceChange:
-                return max(0.2, abs(t.priceChangePercent))
+                return pow(max(0.2, abs(t.priceChangePercent)), 0.65)
             }
         }
         
-        let minVal = values.min() ?? 1.0
-        let maxVal = values.max() ?? 100.0
-        let sqrtMin = sqrt(minVal)
-        let sqrtMax = sqrt(maxVal)
-        let range = max(1e-5, sqrtMax - sqrtMin)
+        let minLog = logValues.min() ?? 1.0
+        let maxLog = logValues.max() ?? 10.0
+        let logRange = max(1e-5, maxLog - minLog)
         
         // 3. Build or update nodes
         var updatedNodes: [BubbleNode] = []
@@ -59,16 +67,13 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
         let aspectRatio = max(1.0, min(2.2, canvasSize.width / canvasSize.height))
         
         for (index, ticker) in tickers.enumerated() {
-            let val: Double
-            switch metric {
-            case .marketCap: val = max(1_000, ticker.estimatedMarketCap)
-            case .volume24h: val = max(1_000, ticker.quoteVolume)
-            case .priceChange: val = max(0.2, abs(ticker.priceChangePercent))
-            }
+            let logNorm = (logValues[index] - minLog) / logRange
+            // Power curve rank percentile produces smooth visually distinct steps
+            let rankPercentile = 1.0 - pow(Double(index) / n, 0.62)
             
-            // Square Root Scaling: Area is proportional to Value
-            let norm = (sqrt(val) - sqrtMin) / range
-            let targetR = CGFloat(dynamicMinRadius) + CGFloat(norm) * CGFloat(dynamicMaxRadius - dynamicMinRadius)
+            // 55% Rank Percentile + 45% Log Value Weighting
+            let combinedNorm = 0.55 * rankPercentile + 0.45 * logNorm
+            let targetR = CGFloat(dynamicMinRadius) + CGFloat(combinedNorm) * CGFloat(dynamicMaxRadius - dynamicMinRadius)
             
             if var existing = existingMap[ticker.symbol] {
                 existing.price = ticker.price
@@ -77,7 +82,7 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
                 existing.estimatedMarketCap = ticker.estimatedMarketCap
                 existing.sector = ticker.sector
                 existing.targetRadius = targetR
-                existing.radius += (targetR - existing.radius) * 0.3
+                existing.radius += (targetR - existing.radius) * 0.35
                 updatedNodes.append(existing)
             } else {
                 // Elliptical phyllotaxis spawn across the wide viewport
@@ -108,6 +113,7 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
     // MARK: - Re-pack / Shake Layout
     public func repack() {
         guard bounds.width > 50 && bounds.height > 50 else { return }
+        self.wake()
         let center = CGPoint(x: bounds.width / 2, y: bounds.height / 2)
         let aspectRatio = bounds.width / bounds.height
         
@@ -126,8 +132,9 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
         }
     }
     
-    // MARK: - Physics Simulation Step (60 FPS)
+    // MARK: - Physics Simulation Step (Ultra-Optimized 60 FPS)
     public func step(dt: CGFloat = 0.016) {
+        guard isSimulating else { return }
         guard bounds.width > 50 && bounds.height > 50 && !bubbles.isEmpty else { return }
         simulationTime += Double(dt)
         
@@ -149,19 +156,19 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
             
             // Soft quadratic gravity: near center it's almost zero; rises gently towards edges
             if normDist > 0.05 {
-                let gravForce = pow(normDist, 1.25) * 0.32
+                let gravForce = pow(normDist, 1.25) * 0.30
                 bubbles[i].velocity.x += (normX / normDist) * gravForce * (1.0 / aspectRatio)
                 bubbles[i].velocity.y += (normY / normDist) * gravForce
             }
             
             // Organic Floating Drift
             let phase = bubbles[i].phase
-            bubbles[i].velocity.x += CGFloat(sin(simulationTime * 1.2 + phase)) * 0.06
-            bubbles[i].velocity.y += CGFloat(cos(simulationTime * 1.0 + phase)) * 0.06
+            bubbles[i].velocity.x += CGFloat(sin(simulationTime * 1.2 + phase)) * 0.05
+            bubbles[i].velocity.y += CGFloat(cos(simulationTime * 1.0 + phase)) * 0.05
         }
         
-        // 2. Anti-Overlap Collision Resolution (3 Iterations for rock-solid stability)
-        for _ in 0..<3 {
+        // 2. Anti-Overlap Collision Resolution (2 Iterations for high performance & stability)
+        for _ in 0..<2 {
             for i in 0..<count {
                 for j in (i + 1)..<count {
                     var dx = bubbles[j].position.x - bubbles[i].position.x
@@ -210,22 +217,23 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
             
             if bubbles[i].position.x < minX {
                 bubbles[i].position.x = minX
-                bubbles[i].velocity.x = abs(bubbles[i].velocity.x) * 0.45
+                bubbles[i].velocity.x = abs(bubbles[i].velocity.x) * 0.4
             } else if bubbles[i].position.x > maxX {
                 bubbles[i].position.x = maxX
-                bubbles[i].velocity.x = -abs(bubbles[i].velocity.x) * 0.45
+                bubbles[i].velocity.x = -abs(bubbles[i].velocity.x) * 0.4
             }
             
             if bubbles[i].position.y < minY {
                 bubbles[i].position.y = minY
-                bubbles[i].velocity.y = abs(bubbles[i].velocity.y) * 0.45
+                bubbles[i].velocity.y = abs(bubbles[i].velocity.y) * 0.4
             } else if bubbles[i].position.y > maxY {
                 bubbles[i].position.y = maxY
-                bubbles[i].velocity.y = -abs(bubbles[i].velocity.y) * 0.45
+                bubbles[i].velocity.y = -abs(bubbles[i].velocity.y) * 0.4
             }
         }
         
         // 4. Position Integration & Velocity Damping
+        var maxVel: CGFloat = 0
         for i in 0..<count {
             guard !bubbles[i].isPinned else { continue }
             
@@ -235,16 +243,30 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
             bubbles[i].velocity.x *= 0.88
             bubbles[i].velocity.y *= 0.88
             
+            let currentV = abs(bubbles[i].velocity.x) + abs(bubbles[i].velocity.y)
+            if currentV > maxVel { maxVel = currentV }
+            
             // Interpolate towards target radius
             let diffR = bubbles[i].targetRadius - bubbles[i].radius
             if abs(diffR) > 0.1 {
                 bubbles[i].radius += diffR * 0.15
             }
         }
+        
+        // 5. Alpha Decay / Simulation Sleep (Saves CPU, zero lag when settled)
+        if maxVel < 0.10 {
+            sleepCounter += 1
+            if sleepCounter > 80 { // ~1.3 seconds of calm
+                isSimulating = false
+            }
+        } else {
+            sleepCounter = 0
+        }
     }
     
     // MARK: - Interactive Drag & Throw Gestures
     public func startDrag(symbol: String, at point: CGPoint) {
+        self.wake()
         if let idx = bubbles.firstIndex(where: { $0.id == symbol }) {
             bubbles[idx].isPinned = true
             bubbles[idx].position = point
@@ -253,6 +275,7 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
     }
     
     public func updateDrag(symbol: String, to point: CGPoint) {
+        self.wake()
         if let idx = bubbles.firstIndex(where: { $0.id == symbol }) {
             let prev = bubbles[idx].position
             bubbles[idx].position = point
@@ -264,6 +287,7 @@ public final class BubblePhysicsEngine: @unchecked Sendable {
     }
     
     public func endDrag(symbol: String, releaseVelocity: CGPoint) {
+        self.wake()
         if let idx = bubbles.firstIndex(where: { $0.id == symbol }) {
             bubbles[idx].isPinned = false
             bubbles[idx].velocity = CGPoint(

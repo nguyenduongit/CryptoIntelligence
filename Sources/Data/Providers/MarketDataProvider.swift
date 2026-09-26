@@ -6,6 +6,15 @@ public actor MarketDataProvider {
     private let candleProvider: BinanceCandleProvider
     private let session: URLSession
     
+    // In-memory cache for market overview to prevent network spam & UI lag
+    private var cachedOverview: (
+        tickers: [MarketTicker24h],
+        metrics: MarketGlobalMetrics,
+        sectors: [SectorPerformance]
+    )? = nil
+    private var lastCacheTime: Date? = nil
+    private let cacheDuration: TimeInterval = 25.0 // 25 seconds TTL
+    
     public init(candleProvider: BinanceCandleProvider = .shared) {
         self.candleProvider = candleProvider
         let config = URLSessionConfiguration.default
@@ -13,11 +22,17 @@ public actor MarketDataProvider {
         self.session = URLSession(configuration: config)
     }
     
-    public func fetchMarketOverview() async throws -> (
+    public func fetchMarketOverview(forceRefresh: Bool = false) async throws -> (
         tickers: [MarketTicker24h],
         metrics: MarketGlobalMetrics,
         sectors: [SectorPerformance]
     ) {
+        // Return cached data if within TTL
+        if !forceRefresh, let cached = cachedOverview, let lastTime = lastCacheTime,
+           Date().timeIntervalSince(lastTime) < cacheDuration {
+            return cached
+        }
+        
         // 1. Fetch 24h Tickers from Binance
         let tickers = try await candleProvider.fetchAll24hrTickers()
         
@@ -87,7 +102,11 @@ public actor MarketDataProvider {
         // Sort sectors by average change descending
         sectorPerformances.sort { $0.avgChangePercent > $1.avgChangePercent }
         
-        return (tickers, metrics, sectorPerformances)
+        let result = (tickers, metrics, sectorPerformances)
+        self.cachedOverview = result
+        self.lastCacheTime = Date()
+        
+        return result
     }
     
     public func fetchFearAndGreedIndex() async -> (value: Int, classification: String) {
