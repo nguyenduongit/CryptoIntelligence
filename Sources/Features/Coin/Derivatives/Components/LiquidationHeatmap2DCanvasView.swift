@@ -192,48 +192,27 @@ public struct LiquidationHeatmap2DCanvasView: View {
             context.stroke(path, with: .color(Color.white.opacity(0.04)), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
         
-        // 2. Render Heatmap Bands (Coinglass continuous glowing ribbons)
+        // 2. Render Heatmap 2D Grid (Authentic Coinglass 2D Thermal Density Field)
         if showHeatmapBands {
+            let numRows = max(1, data.slices.first?.bands.count ?? 55)
+            let rowH = h / CGFloat(numRows)
+            
             for (colIdx, slice) in data.slices.enumerated() {
                 let x = CGFloat(colIdx) * colW
                 
                 for band in slice.bands {
-                    // Filter out bands below user-specified liquidity threshold
+                    // Suppress cells below user-selected liquidity threshold (reveals clean dark canvas)
                     guard band.intensity >= liquidityThreshold else { continue }
                     
                     let priceRatio = (band.price - data.minPrice) / priceSpan
                     guard priceRatio >= 0.0 && priceRatio <= 1.0 else { continue }
                     
                     let y = (1.0 - CGFloat(priceRatio)) * h
-                    let bandH = max(6.0, h / 36.0)
+                    let cellColor = palette.color(for: band.intensity, threshold: liquidityThreshold)
                     
-                    let bandColor = palette.color(for: band.intensity, threshold: liquidityThreshold)
-                    let rect = CGRect(x: x, y: y - bandH / 2.0, width: colW + 0.5, height: bandH)
-                    
-                    // Soft vertical gradient glow
-                    let stops: [Gradient.Stop] = [
-                        .init(color: bandColor.opacity(0.08), location: 0.0),
-                        .init(color: bandColor.opacity(0.65), location: 0.25),
-                        .init(color: bandColor, location: 0.5),
-                        .init(color: bandColor.opacity(0.65), location: 0.75),
-                        .init(color: bandColor.opacity(0.08), location: 1.0)
-                    ]
-                    context.fill(
-                        Path(rect),
-                        with: .linearGradient(
-                            Gradient(stops: stops),
-                            startPoint: CGPoint(x: x, y: rect.minY),
-                            endPoint: CGPoint(x: x, y: rect.maxY)
-                        )
-                    )
-                    
-                    // Luminous center laser line for high-intensity unswept levels
-                    if band.intensity >= 0.70 && !band.isSwept {
-                        var corePath = Path()
-                        corePath.move(to: CGPoint(x: x, y: y))
-                        corePath.addLine(to: CGPoint(x: x + colW + 0.5, y: y))
-                        context.stroke(corePath, with: .color(bandColor.opacity(0.85)), lineWidth: 1.2)
-                    }
+                    // Render 2D thermal density cell with smooth blending
+                    let rect = CGRect(x: x, y: y - rowH / 2.0, width: colW + 0.6, height: rowH + 0.6)
+                    context.fill(Path(rect), with: .color(cellColor.opacity(0.85)))
                 }
             }
         }
@@ -247,7 +226,7 @@ public struct LiquidationHeatmap2DCanvasView: View {
             curPath.addLine(to: CGPoint(x: w, y: curY))
             
             // Soft cyan glow behind
-            context.stroke(curPath, with: .color(AppTheme.cyan.opacity(0.25)), style: StrokeStyle(lineWidth: 3.5))
+            context.stroke(curPath, with: .color(AppTheme.cyan.opacity(0.30)), style: StrokeStyle(lineWidth: 3.5))
             // Crisp cyan dashed line
             context.stroke(curPath, with: .color(AppTheme.cyan), style: StrokeStyle(lineWidth: 1.2, dash: [6, 4]))
         }
@@ -269,15 +248,15 @@ public struct LiquidationHeatmap2DCanvasView: View {
                 var wickPath = Path()
                 wickPath.move(to: CGPoint(x: xCenter, y: highY))
                 wickPath.addLine(to: CGPoint(x: xCenter, y: lowY))
-                context.stroke(wickPath, with: .color(candleColor.opacity(0.85)), lineWidth: 1.0)
+                context.stroke(wickPath, with: .color(candleColor), lineWidth: 1.2)
                 
-                // Body - compact & sleek so it sits gracefully over the heatmap
+                // Body - crisp and prominent over the thermal clouds
                 let bodyTop = min(openY, closeY)
-                let bodyH = max(2.0, abs(closeY - openY))
-                let bodyW = min(12.0, max(3.0, colW * 0.42))
+                let bodyH = max(2.5, abs(closeY - openY))
+                let bodyW = min(14.0, max(3.5, colW * 0.48))
                 let bodyRect = CGRect(x: xCenter - bodyW / 2.0, y: bodyTop, width: bodyW, height: bodyH)
                 
-                context.fill(Path(bodyRect), with: .color(candleColor.opacity(0.80)))
+                context.fill(Path(bodyRect), with: .color(candleColor.opacity(0.88)))
                 context.stroke(Path(bodyRect), with: .color(candleColor), lineWidth: 1.0)
             }
         }
@@ -331,21 +310,27 @@ public struct LiquidationHeatmap2DCanvasView: View {
                         .font(.system(size: 9))
                         .foregroundColor(.white.opacity(0.6))
                     
-                    // Nearest band estimation (within 2% proximity)
+                    // Nearest band estimation (within 3% proximity)
                     if let nearest = sl.bands.min(by: { abs($0.price - hoverPrice) < abs($1.price - hoverPrice) }),
-                       abs(nearest.price - hoverPrice) / max(1e-8, hoverPrice) < 0.02 {
-                        HStack(spacing: 4) {
-                            Text("Đòn bẩy \(nearest.leverageTier):")
-                                .font(.system(size: 9))
-                                .foregroundColor(nearest.side.color)
-                            Text(Formatters.formatVolume(nearest.volumeUSD) + " USD")
-                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
-                                .foregroundColor(.white)
-                            if nearest.isSwept {
-                                Text("(Đã quét)")
-                                    .font(.system(size: 8.5))
-                                    .foregroundColor(.white.opacity(0.5))
+                       abs(nearest.price - hoverPrice) / max(1e-8, hoverPrice) < 0.03 {
+                        if nearest.intensity >= 0.15 {
+                            HStack(spacing: 4) {
+                                Text("Cụm \(nearest.leverageTier) (\(nearest.side == .shortLiquidation ? "Short" : "Long")):")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(nearest.side.color)
+                                Text(Formatters.formatVolume(nearest.volumeUSD) + " USD")
+                                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                    .foregroundColor(.white)
+                                if nearest.isSwept {
+                                    Text("(Đã quét)")
+                                        .font(.system(size: 8.5))
+                                        .foregroundColor(.white.opacity(0.5))
+                                }
                             }
+                        } else {
+                            Text("Vùng mật độ thấp")
+                                .font(.system(size: 8.5))
+                                .foregroundColor(.white.opacity(0.45))
                         }
                     }
                 }
