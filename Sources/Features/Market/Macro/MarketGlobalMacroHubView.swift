@@ -11,36 +11,13 @@ public struct MarketGlobalMacroHubView: View {
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                // 1. Header Banner
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Tình Báo Kinh Tế Toàn Cầu & Thị Trường Liên Tài Sản")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                        Text("Chính sách lãi suất Fed/ECB/BOJ, lạm phát CPI, tỷ giá DXY, S&P 500, Vàng và thanh khoản cung tiền M2.")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.5))
-                    }
-                    
-                    Spacer()
-                    
-                    DataSourceBadge(type: .macroSnapshot, text: "FRED & Global Central Banks")
-                }
-                .padding(12)
-                .background(AppTheme.darkCard)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(AppTheme.darkBorder, lineWidth: 1)
-                )
-                
-                // 2. Top Macro Ticker Ribbon
+                // 1. Full-Width 6-Block Macro Ticker Grid (DXY, Gold, US10Y, SPX, NDX, Oil)
                 macroTickerRibbon
                 
-                // 4. Macro Risk-On / Risk-Off Sentiment Gauge
+                // 2. Macro Risk-On / Risk-Off Sentiment Gauge
                 macroRiskGaugeBanner
                 
-                // 5. Dynamic Content Grid based on selected section
+                // 3. Dynamic Content Grid based on selected section
                 switch viewModel.selectedGlobalMacroSection {
                 case .all:
                     HStack(alignment: .top, spacing: 14) {
@@ -87,41 +64,98 @@ public struct MarketGlobalMacroHubView: View {
         .background(AppTheme.darkBackground)
     }
     
-    // MARK: - 1. Top Macro Ticker Ribbon
+    // MARK: - 1. Full-Width 6-Block Macro Ticker Grid
     private var macroTickerRibbon: some View {
-        HStack(spacing: 10) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 6), spacing: 10) {
             ForEach(macroData.crossAssets) { asset in
-                HStack(spacing: 8) {
-                    Image(systemName: asset.iconName)
-                        .font(.system(size: 11))
-                        .foregroundColor(AppTheme.accentBlue)
-                    
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(asset.symbol)
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundColor(.white.opacity(0.6))
-                        
-                        HStack(spacing: 4) {
-                            Text(formatRibbonPrice(asset))
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                .foregroundColor(.white)
-                            
-                            Text(String(format: "%@%.2f%%", asset.change24h >= 0 ? "+" : "", asset.change24h))
-                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                                .foregroundColor(asset.change24h >= 0 ? AppTheme.upGreen : AppTheme.downRed)
-                        }
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(AppTheme.darkCard)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6).stroke(AppTheme.darkBorder.opacity(0.6), lineWidth: 1)
-                )
+                macroTickerCard(asset)
             }
         }
+    }
+    
+    private func macroTickerCard(_ asset: CrossAssetTickerItem) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Header Row: Icon + Symbol + 24h Change Pill
+            HStack(alignment: .center) {
+                HStack(spacing: 5) {
+                    Image(systemName: asset.iconName)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(assetColor(asset))
+                    
+                    Text(asset.symbol)
+                        .font(.system(size: 11.5, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+                
+                Spacer()
+                
+                // 24h Change Badge
+                Text(String(format: "%@%.2f%%", asset.change24h >= 0 ? "+" : "", asset.change24h))
+                    .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                    .foregroundColor(asset.change24h >= 0 ? AppTheme.upGreen : AppTheme.downRed)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2.5)
+                    .background(asset.change24h >= 0 ? AppTheme.upGreen.opacity(0.15) : AppTheme.downRed.opacity(0.15))
+                    .clipShape(Capsule())
+            }
+            
+            // Name / Category Subtitle
+            Text(asset.name)
+                .font(.system(size: 9.5))
+                .foregroundColor(.white.opacity(0.5))
+                .lineLimit(1)
+            
+            // Price & Unit
+            HStack(alignment: .lastTextBaseline, spacing: 4) {
+                Text(formatRibbonPrice(asset))
+                    .font(.system(size: 16, weight: .bold, design: .monospaced))
+                    .foregroundColor(.white)
+                
+                Text(asset.priceUnit)
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.45))
+            }
+            
+            Divider()
+                .background(AppTheme.darkBorder.opacity(0.6))
+            
+            // Bottom Info: Correlation with BTC & 30D Trend
+            HStack {
+                HStack(spacing: 3) {
+                    Circle()
+                        .fill(asset.correlationColor)
+                        .frame(width: 5, height: 5)
+                    Text(String(format: "T/q BTC: %+.2f", asset.correlationWithBTC_30d))
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .foregroundColor(asset.correlationColor)
+                }
+                
+                Spacer()
+                
+                Text(String(format: "30D: %+.1f%%", asset.change30d))
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundColor(asset.change30d >= 0 ? AppTheme.upGreen.opacity(0.8) : AppTheme.downRed.opacity(0.8))
+            }
+        }
+        .padding(11)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppTheme.darkCard)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(AppTheme.darkBorder, lineWidth: 1)
+        )
+    }
+    
+    private func assetColor(_ asset: CrossAssetTickerItem) -> Color {
+        switch asset.symbol {
+        case "DXY": return AppTheme.upGreen
+        case "XAU/USD": return Color.yellow
+        case "US10Y": return AppTheme.orange
+        case "S&P 500": return AppTheme.accentBlue
+        case "Nasdaq 100": return Color.purple
+        default: return AppTheme.cyan
+        }
     }
     
     // MARK: - 2. Macro Risk-On / Risk-Off Sentiment Gauge
@@ -193,7 +227,7 @@ public struct MarketGlobalMacroHubView: View {
     
     private func formatRibbonPrice(_ asset: CrossAssetTickerItem) -> String {
         if asset.currentPrice >= 1000 {
-            return String(format: "%.1f", asset.currentPrice)
+            return String(format: "%.2f", asset.currentPrice)
         } else if asset.currentPrice >= 1 {
             return String(format: "%.2f", asset.currentPrice)
         } else {
