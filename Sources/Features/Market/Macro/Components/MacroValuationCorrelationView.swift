@@ -33,13 +33,13 @@ public struct MacroValuationCorrelationView: View {
         let change7d = totalSnap?.change7d ?? 4.20
         
         let btcD = snapshots.first { $0.indexType == .btcD }?.currentValue ?? seasonReport.btcDPercentage
-        let ethD = snapshots.first { $0.indexType == .ethD }?.currentValue ?? 10.60
-        let usdtD = snapshots.first { $0.indexType == .usdtD }?.currentValue ?? seasonReport.usdtDPercentage
-        let othersD = max(2.0, 100.0 - btcD - ethD - usdtD)
+        let ethD = snapshots.first { $0.indexType == .ethD }?.currentValue ?? seasonReport.ethDPercentage
+        let stableD = snapshots.first { $0.indexType == .stableD }?.currentValue ?? seasonReport.stablecoinDominancePercentage
+        let othersD = max(2.0, 100.0 - btcD - ethD - stableD)
         
         let btcCap = totalVal * (btcD / 100.0)
         let ethCap = totalVal * (ethD / 100.0)
-        let usdtCap = totalVal * (usdtD / 100.0)
+        let stableCap = seasonReport.totalStablecoinLiquidityUSD > 0 ? seasonReport.totalStablecoinLiquidityUSD : totalVal * (stableD / 100.0)
         let othersCap = totalVal * (othersD / 100.0)
         
         return VStack(alignment: .leading, spacing: 14) {
@@ -153,8 +153,8 @@ public struct MacroValuationCorrelationView: View {
                     let w = geo.size.width
                     let btcW = max(10, w * CGFloat(btcD / 100.0))
                     let ethW = max(10, w * CGFloat(ethD / 100.0))
-                    let usdtW = max(10, w * CGFloat(usdtD / 100.0))
-                    let othersW = max(10, w - btcW - ethW - usdtW)
+                    let stableW = max(10, w * CGFloat(stableD / 100.0))
+                    let othersW = max(10, w - btcW - ethW - stableW)
                     
                     HStack(spacing: 2) {
                         // BTC.D Segment
@@ -181,12 +181,12 @@ public struct MacroValuationCorrelationView: View {
                                 alignment: .center
                             )
                         
-                        // USDT.D Segment
+                        // STABLE.D Segment
                         Rectangle()
                             .fill(AppTheme.upGreen)
-                            .frame(width: usdtW)
+                            .frame(width: stableW)
                             .overlay(
-                                Text(String(format: "USDT %.1f%%", usdtD))
+                                Text(String(format: "STABLES %.1f%%", stableD))
                                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                                     .foregroundColor(.black)
                                     .lineLimit(1),
@@ -231,12 +231,12 @@ public struct MacroValuationCorrelationView: View {
                 )
                 
                 dominanceDetailPill(
-                    title: "USDT.D (Stablecoin)",
-                    percentage: usdtD,
-                    marketCapUSD: usdtCap,
+                    title: "STABLE.D (Toàn Bộ Stablecoins)",
+                    percentage: stableD,
+                    marketCapUSD: stableCap,
                     color: AppTheme.upGreen,
-                    icon: "dollarsign.circle.fill",
-                    subtitle: "Tiền mặt chờ giải ngân"
+                    icon: "banknote.fill",
+                    subtitle: "USDT, USDC, USDS, USDe..."
                 )
                 
                 dominanceDetailPill(
@@ -472,42 +472,127 @@ public struct MacroValuationCorrelationView: View {
     
     // MARK: - 3. Stablecoin Liquidity & Cash Sidelined Meter
     private var stablecoinLiquidityMeterCard: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("THANH KHOẢN TIỀN MẶT BÊN LỀ (SIDELINED CASH)")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white.opacity(0.5))
-                
+        VStack(alignment: .leading, spacing: 12) {
+            // Header Row
+            HStack(spacing: 8) {
                 HStack(spacing: 6) {
-                    Text(formatTrillions(seasonReport.stablecoinLiquidityUSD))
-                        .font(.system(size: 18, weight: .bold, design: .monospaced))
-                        .foregroundColor(.white)
-                    
-                    Text(String(format: "(USDT.D: %.2f%%)", seasonReport.usdtDPercentage))
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    Image(systemName: "banknote.fill")
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundColor(AppTheme.upGreen)
+                    Text("QUY MÔ & THANH KHOẢN TIỀN MẶT TOÀN BỘ STABLECOINS (SIDELINED CASH)")
+                        .font(.system(size: 11.5, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                
+                Spacer()
+                
+                // Total Cap & Dominance Badges
+                HStack(spacing: 6) {
+                    HStack(spacing: 4) {
+                        Text("Tổng Nguồn Cung:")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                        Text(formatTrillions(seasonReport.totalStablecoinLiquidityUSD))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3.5)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(Capsule())
+                    
+                    HStack(spacing: 4) {
+                        Text("STABLE.D:")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(AppTheme.upGreen.opacity(0.8))
+                        Text(String(format: "%.2f%%", seasonReport.stablecoinDominancePercentage))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundColor(AppTheme.upGreen)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3.5)
+                    .background(AppTheme.upGreen.opacity(0.12))
+                    .clipShape(Capsule())
                 }
             }
             
-            Divider()
-                .frame(height: 36)
-                .background(AppTheme.darkBorder)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Ý NGHĨA CHIẾN LƯỢC:")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(AppTheme.accentBlue)
-                Text("Tỷ trọng Stablecoin đo lường lượng tiền mặt sẵn sàng giải ngân bắt đáy hoặc đón đầu sóng mới.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.75))
+            // Multi-Stablecoin Breakdown Grid / Row
+            let stables = seasonReport.topStablecoins.isEmpty ? defaultFallbackStables : seasonReport.topStablecoins
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: min(6, max(2, stables.count))), spacing: 8) {
+                ForEach(stables) { item in
+                    stablecoinItemPill(item)
+                }
             }
             
-            Spacer()
+            // Strategic Footer Note
+            HStack(spacing: 6) {
+                Image(systemName: "lightbulb.fill")
+                    .foregroundColor(AppTheme.orange)
+                    .font(.system(size: 11))
+                Text("Ý nghĩa chiến lược: Theo dõi toàn bộ vũ trụ Stablecoins (USDT + USDC + USDS + USDe + DAI...) phản ánh chính xác 100% tổng lượng 'tiền tươi' đang nằm trực chờ trên các sàn CEX và DeFi sẵn sàng giải ngân đón sóng.")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppTheme.orange.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
         }
-        .padding(12)
+        .padding(14)
         .background(AppTheme.darkCard)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppTheme.darkBorder, lineWidth: 1))
+    }
+    
+    private func stablecoinItemPill(_ item: StablecoinBreakdownItem) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: item.iconName)
+                        .font(.system(size: 10))
+                        .foregroundColor(AppTheme.upGreen)
+                    Text(item.symbol)
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+                
+                Spacer()
+                
+                // 7d change
+                if item.change7dPercent != 0 {
+                    Text(String(format: "%+.1f%%", item.change7dPercent))
+                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                        .foregroundColor(item.change7dPercent >= 0 ? AppTheme.upGreen : AppTheme.downRed)
+                }
+            }
+            
+            Text(formatTrillions(item.circulatingUSD))
+                .font(.system(size: 12.5, weight: .bold, design: .monospaced))
+                .foregroundColor(.white)
+            
+            HStack(spacing: 3) {
+                Text(String(format: "Tỷ trọng: %.1f%%", item.shareOfStablesPercentage))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.white.opacity(0.55))
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.02))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(AppTheme.darkBorder.opacity(0.6), lineWidth: 1))
+    }
+    
+    private var defaultFallbackStables: [StablecoinBreakdownItem] {
+        [
+            StablecoinBreakdownItem(symbol: "USDT", name: "Tether USD", circulatingUSD: 183_750_000_000, dominancePercentage: 6.37, shareOfStablesPercentage: 58.5, change7dPercent: 0.24, iconName: "dollarsign.circle.fill"),
+            StablecoinBreakdownItem(symbol: "USDC", name: "USD Coin", circulatingUSD: 76_600_000_000, dominancePercentage: 2.66, shareOfStablesPercentage: 24.4, change7dPercent: 2.92, iconName: "centsign.circle.fill"),
+            StablecoinBreakdownItem(symbol: "USDS", name: "Sky Dollar", circulatingUSD: 6_640_000_000, dominancePercentage: 0.23, shareOfStablesPercentage: 2.1, change7dPercent: 1.95, iconName: "banknote.fill"),
+            StablecoinBreakdownItem(symbol: "USDe", name: "Ethena USD", circulatingUSD: 4_930_000_000, dominancePercentage: 0.17, shareOfStablesPercentage: 1.6, change7dPercent: 2.71, iconName: "flame.fill"),
+            StablecoinBreakdownItem(symbol: "DAI", name: "Maker DAI", circulatingUSD: 4_790_000_000, dominancePercentage: 0.16, shareOfStablesPercentage: 1.5, change7dPercent: -0.05, iconName: "diamond.fill"),
+            StablecoinBreakdownItem(symbol: "Khác", name: "Khác", circulatingUSD: 37_190_000_000, dominancePercentage: 1.29, shareOfStablesPercentage: 11.9, change7dPercent: 1.10, iconName: "square.stack.3d.up.fill")
+        ]
     }
     
     private func formatTrillions(_ val: Double) -> String {

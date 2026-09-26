@@ -5,6 +5,7 @@ public actor MacroIndicesDataProvider {
     
     private var snapshotsCache: (data: [MacroIndexSnapshot], timestamp: Date)?
     private var seasonReportCache: (data: MarketSeasonReport, timestamp: Date)?
+    private var stablecoinsCache: (data: [StablecoinBreakdownItem], totalUSD: Double, timestamp: Date)?
     private var candlesCache: [String: (data: [MacroIndexCandle], timestamp: Date)] = [:]
     
     private let cacheTTL: TimeInterval = 60 // 1 minute fresh cache
@@ -27,7 +28,8 @@ public actor MacroIndicesDataProvider {
         }
         
         let snapshots = await fetchMacroSnapshots()
-        let report = generateSeasonReport(snapshots: snapshots)
+        let (stablecoins, totalStablesUSD) = await fetchLiveStablecoinsData()
+        let report = generateSeasonReport(snapshots: snapshots, stablecoins: stablecoins, totalStablesUSD: totalStablesUSD)
         seasonReportCache = (report, Date())
         return report
     }
@@ -45,6 +47,88 @@ public actor MacroIndicesDataProvider {
         let candles = generateIndexCandles(index: index, timeframe: timeframe, currentLivePrice: currentPrice)
         candlesCache[key] = (candles, Date())
         return candles
+    }
+    
+    // MARK: - Stablecoins Fetcher (DeFiLlama)
+    public func fetchLiveStablecoinsData() async -> (items: [StablecoinBreakdownItem], totalUSD: Double) {
+        if let cached = stablecoinsCache, Date().timeIntervalSince(cached.timestamp) < cacheTTL {
+            return (cached.data, cached.totalUSD)
+        }
+        
+        guard let url = URL(string: "https://stablecoins.llama.fi/stablecoins") else {
+            return defaultStablecoins()
+        }
+        
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 6.0
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200,
+                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let peggedList = json["peggedAssets"] as? [[String: Any]] else {
+                return defaultStablecoins()
+            }
+            
+            var totalStablesUSD: Double = 0.0
+            var validAssets: [(symbol: String, name: String, cur: Double, prev7d: Double)] = []
+            
+            for item in peggedList {
+                let symbol = item["symbol"] as? String ?? ""
+                let name = item["name"] as? String ?? ""
+                let circulatingDict = item["circulating"] as? [String: Any] ?? [:]
+                let curUSD = (circulatingDict["peggedUSD"] as? NSNumber)?.doubleValue ?? 0.0
+                
+                let prevWeekDict = item["circulatingPrevWeek"] as? [String: Any] ?? [:]
+                let prevUSD = (prevWeekDict["peggedUSD"] as? NSNumber)?.doubleValue ?? curUSD
+                
+                if curUSD > 10_000_000 {
+                    totalStablesUSD += curUSD
+                    validAssets.append((symbol: symbol, name: name, cur: curUSD, prev7d: prevUSD))
+                }
+            }
+            
+            let totalCap = 2_884_000_000_000.0 // Baseline total market cap
+            validAssets.sort { $0.cur > $1.cur }
+            
+            let topItems: [StablecoinBreakdownItem] = validAssets.prefix(6).map { a in
+                let change7d = a.prev7d > 0 ? ((a.cur - a.prev7d) / a.prev7d) * 100.0 : 0.0
+                let dom = (a.cur / totalCap) * 100.0
+                let share = totalStablesUSD > 0 ? (a.cur / totalStablesUSD) * 100.0 : 0.0
+                return StablecoinBreakdownItem(
+                    symbol: a.symbol,
+                    name: a.name,
+                    circulatingUSD: a.cur,
+                    dominancePercentage: dom,
+                    shareOfStablesPercentage: share,
+                    change7dPercent: change7d,
+                    iconName: a.symbol == "USDT" ? "dollarsign.circle.fill" : (a.symbol == "USDC" ? "centsign.circle.fill" : "banknote.fill")
+                )
+            }
+            
+            let result = (topItems, totalStablesUSD)
+            stablecoinsCache = (topItems, totalStablesUSD, Date())
+            return result
+        } catch {
+            return defaultStablecoins()
+        }
+    }
+    
+    private func defaultStablecoins() -> (items: [StablecoinBreakdownItem], totalUSD: Double) {
+        let totalStables = 313_900_000_000.0
+        let totalCap = 2_884_000_000_000.0
+        
+        let items: [StablecoinBreakdownItem] = [
+            StablecoinBreakdownItem(symbol: "USDT", name: "Tether USD", circulatingUSD: 183_750_000_000, dominancePercentage: (183.75e9 / totalCap) * 100, shareOfStablesPercentage: 58.5, change7dPercent: 0.24, iconName: "dollarsign.circle.fill"),
+            StablecoinBreakdownItem(symbol: "USDC", name: "USD Coin (Circle)", circulatingUSD: 76_600_000_000, dominancePercentage: (76.6e9 / totalCap) * 100, shareOfStablesPercentage: 24.4, change7dPercent: 2.92, iconName: "centsign.circle.fill"),
+            StablecoinBreakdownItem(symbol: "USDS", name: "Sky Dollar", circulatingUSD: 6_640_000_000, dominancePercentage: (6.64e9 / totalCap) * 100, shareOfStablesPercentage: 2.1, change7dPercent: 1.95, iconName: "banknote.fill"),
+            StablecoinBreakdownItem(symbol: "USDe", name: "Ethena Synthetic USD", circulatingUSD: 4_930_000_000, dominancePercentage: (4.93e9 / totalCap) * 100, shareOfStablesPercentage: 1.6, change7dPercent: 2.71, iconName: "flame.fill"),
+            StablecoinBreakdownItem(symbol: "DAI", name: "Dai (MakerDAO)", circulatingUSD: 4_790_000_000, dominancePercentage: (4.79e9 / totalCap) * 100, shareOfStablesPercentage: 1.5, change7dPercent: -0.05, iconName: "diamond.fill"),
+            StablecoinBreakdownItem(symbol: "Khác", name: "USD1, FDUSD, PYUSD...", circulatingUSD: 37_190_000_000, dominancePercentage: (37.19e9 / totalCap) * 100, shareOfStablesPercentage: 11.9, change7dPercent: 1.10, iconName: "square.stack.3d.up.fill")
+        ]
+        return (items, totalStables)
     }
     
     // MARK: - Internal Live Fetchers
@@ -89,16 +173,18 @@ public actor MacroIndicesDataProvider {
             let mcapChange24h = (gData["market_cap_change_percentage_24h_usd"] as? NSNumber)?.doubleValue ?? 0.30
             
             let mcapPercDict = gData["market_cap_percentage"] as? [String: Any] ?? [:]
-            let btcD = (mcapPercDict["btc"] as? NSNumber)?.doubleValue ?? 58.3
-            let ethD = (mcapPercDict["eth"] as? NSNumber)?.doubleValue ?? 11.3
-            let usdtD = (mcapPercDict["usdt"] as? NSNumber)?.doubleValue ?? 6.35
+            let btcD = (mcapPercDict["btc"] as? NSNumber)?.doubleValue ?? 58.34
+            let ethD = (mcapPercDict["eth"] as? NSNumber)?.doubleValue ?? 11.32
+            let usdtD = (mcapPercDict["usdt"] as? NSNumber)?.doubleValue ?? 6.37
+            let usdcD = (mcapPercDict["usdc"] as? NSNumber)?.doubleValue ?? 2.66
+            let stableD = max(usdtD + usdcD + 1.85, 10.88)
             
             let btcCap = totalMcapUSD * (btcD / 100.0)
             let ethCap = totalMcapUSD * (ethD / 100.0)
             
             let total2 = max(100_000_000_000.0, totalMcapUSD - btcCap)
             let total3 = max(50_000_000_000.0, totalMcapUSD - btcCap - ethCap)
-            let othersD = max(1.0, 100.0 - btcD - ethD - usdtD)
+            let othersD = max(1.0, 100.0 - btcD - ethD - stableD)
             
             return [
                 MacroIndexSnapshot(
@@ -140,6 +226,14 @@ public actor MacroIndicesDataProvider {
                     change7d: +0.60,
                     formattedValue: String(format: "%.2f%%", ethD),
                     sparkline: generateSparkline(base: ethD, trend: +0.20)
+                ),
+                MacroIndexSnapshot(
+                    indexType: .stableD,
+                    currentValue: stableD,
+                    change24h: -0.05,
+                    change7d: -0.15,
+                    formattedValue: String(format: "%.2f%%", stableD),
+                    sparkline: generateSparkline(base: stableD, trend: -0.05)
                 ),
                 MacroIndexSnapshot(
                     indexType: .usdtD,
@@ -202,13 +296,14 @@ public actor MacroIndicesDataProvider {
             let btcCap = btcPrice * btcCirculatingSupply
             let ethCap = ethPrice * ethCirculatingSupply
             
-            let btcD = 58.3
+            let btcD = 58.34
             let total = btcCap / (btcD / 100.0)
             let ethD = (ethCap / total) * 100.0
-            let usdtD = 6.35
+            let stableD = 10.88
+            let usdtD = 6.37
             let total2 = total - btcCap
             let total3 = total - btcCap - ethCap
-            let othersD = max(1.0, 100.0 - btcD - ethD - usdtD)
+            let othersD = max(1.0, 100.0 - btcD - ethD - stableD)
             
             return [
                 MacroIndexSnapshot(indexType: .total, currentValue: total, change24h: btcChange, change7d: btcChange * 1.5, formattedValue: formatTrillions(total), sparkline: generateSparkline(base: total, trend: btcChange)),
@@ -216,6 +311,7 @@ public actor MacroIndicesDataProvider {
                 MacroIndexSnapshot(indexType: .total3, currentValue: total3, change24h: ethChange * 1.2, change7d: ethChange * 2.0, formattedValue: formatTrillions(total3), sparkline: generateSparkline(base: total3, trend: ethChange * 1.2)),
                 MacroIndexSnapshot(indexType: .btcD, currentValue: btcD, change24h: -0.15, change7d: -0.45, formattedValue: String(format: "%.2f%%", btcD), sparkline: generateSparkline(base: btcD, trend: -0.15)),
                 MacroIndexSnapshot(indexType: .ethD, currentValue: ethD, change24h: ethChange, change7d: ethChange * 1.5, formattedValue: String(format: "%.2f%%", ethD), sparkline: generateSparkline(base: ethD, trend: ethChange)),
+                MacroIndexSnapshot(indexType: .stableD, currentValue: stableD, change24h: -0.05, change7d: -0.15, formattedValue: String(format: "%.2f%%", stableD), sparkline: generateSparkline(base: stableD, trend: -0.05)),
                 MacroIndexSnapshot(indexType: .usdtD, currentValue: usdtD, change24h: -0.08, change7d: -0.25, formattedValue: String(format: "%.2f%%", usdtD), sparkline: generateSparkline(base: usdtD, trend: -0.08)),
                 MacroIndexSnapshot(indexType: .othersD, currentValue: othersD, change24h: +0.20, change7d: +0.70, formattedValue: String(format: "%.2f%%", othersD), sparkline: generateSparkline(base: othersD, trend: +0.20))
             ]
@@ -228,12 +324,13 @@ public actor MacroIndicesDataProvider {
         let total = 2_884_000_000_000.0
         let btcD = 58.34
         let ethD = 11.32
-        let usdtD = 6.35
+        let stableD = 10.88
+        let usdtD = 6.37
         let btcCap = total * (btcD / 100.0)
         let ethCap = total * (ethD / 100.0)
         let total2 = total - btcCap
         let total3 = total - btcCap - ethCap
-        let othersD = 23.99
+        let othersD = 19.46
         
         return [
             MacroIndexSnapshot(indexType: .total, currentValue: total, change24h: -0.33, change7d: 2.10, formattedValue: "$2.88T", sparkline: generateSparkline(base: total, trend: -0.33)),
@@ -241,34 +338,43 @@ public actor MacroIndicesDataProvider {
             MacroIndexSnapshot(indexType: .total3, currentValue: total3, change24h: 0.80, change7d: 4.10, formattedValue: "$875B", sparkline: generateSparkline(base: total3, trend: 0.80)),
             MacroIndexSnapshot(indexType: .btcD, currentValue: btcD, change24h: -0.25, change7d: -0.80, formattedValue: "58.34%", sparkline: generateSparkline(base: btcD, trend: -0.25)),
             MacroIndexSnapshot(indexType: .ethD, currentValue: ethD, change24h: 0.35, change7d: 1.10, formattedValue: "11.32%", sparkline: generateSparkline(base: ethD, trend: 0.35)),
-            MacroIndexSnapshot(indexType: .usdtD, currentValue: usdtD, change24h: -0.05, change7d: -0.20, formattedValue: "6.35%", sparkline: generateSparkline(base: usdtD, trend: -0.05)),
-            MacroIndexSnapshot(indexType: .othersD, currentValue: othersD, change24h: 0.42, change7d: 1.25, formattedValue: "23.99%", sparkline: generateSparkline(base: othersD, trend: 0.42))
+            MacroIndexSnapshot(indexType: .stableD, currentValue: stableD, change24h: -0.05, change7d: -0.20, formattedValue: "10.88%", sparkline: generateSparkline(base: stableD, trend: -0.05)),
+            MacroIndexSnapshot(indexType: .usdtD, currentValue: usdtD, change24h: -0.05, change7d: -0.20, formattedValue: "6.37%", sparkline: generateSparkline(base: usdtD, trend: -0.05)),
+            MacroIndexSnapshot(indexType: .othersD, currentValue: othersD, change24h: 0.42, change7d: 1.25, formattedValue: "19.46%", sparkline: generateSparkline(base: othersD, trend: 0.42))
         ]
     }
     
-    private func generateSeasonReport(snapshots: [MacroIndexSnapshot]) -> MarketSeasonReport {
+    private func generateSeasonReport(
+        snapshots: [MacroIndexSnapshot],
+        stablecoins: [StablecoinBreakdownItem],
+        totalStablesUSD: Double
+    ) -> MarketSeasonReport {
         let totalSnap = snapshots.first(where: { $0.indexType == .total })
         let total2Snap = snapshots.first(where: { $0.indexType == .total2 })
         let btcDSnap = snapshots.first(where: { $0.indexType == .btcD })
+        let ethDSnap = snapshots.first(where: { $0.indexType == .ethD })
+        let stableDSnap = snapshots.first(where: { $0.indexType == .stableD })
         let usdtDSnap = snapshots.first(where: { $0.indexType == .usdtD })
         
         let total = totalSnap?.currentValue ?? 2_884_000_000_000.0
         let total2 = total2Snap?.currentValue ?? 1_200_000_000_000.0
         let btcD = btcDSnap?.currentValue ?? 58.34
-        let usdtD = usdtDSnap?.currentValue ?? 6.35
+        let ethD = ethDSnap?.currentValue ?? 11.32
+        let usdtD = usdtDSnap?.currentValue ?? 6.37
+        let stableD = stableDSnap?.currentValue ?? ((totalStablesUSD / total) * 100.0)
         
         let totalChange = totalSnap?.change24h ?? -0.33
         let btcDChange = btcDSnap?.change24h ?? -0.25
-        let usdtDChange = usdtDSnap?.change24h ?? -0.05
+        let stableDChange = stableDSnap?.change24h ?? -0.05
         
         let state: MarketSeasonState
         let altIndex: Int
         let summary: String
         
-        if usdtDChange > 1.5 && totalChange < -1.5 {
+        if stableDChange > 1.5 && totalChange < -1.5 {
             state = .riskOffPanic
             altIndex = 20
-            summary = "Dòng tiền đang tháo chạy về Stablecoin USDT. Nhà đầu tư rút tiền mặt đứng ngoài chờ đợi. Khuyến nghị ưu tiên quản trị rủi ro và giữ thanh khoản an toàn."
+            summary = "Dòng tiền đang tháo chạy về Stablecoins (USDT/USDC). Nhà đầu tư chuyển sang tiền mặt phòng thủ. Khuyến nghị ưu tiên quản trị rủi ro và giữ thanh khoản an toàn."
         } else if btcDChange < -0.2 && totalChange >= 0 {
             state = .altcoinSeason
             altIndex = 72
@@ -289,8 +395,11 @@ public actor MacroIndicesDataProvider {
             totalMarketCapUSD: total,
             altcoinMarketCapUSD: total2,
             btcDPercentage: btcD,
+            ethDPercentage: ethD,
             usdtDPercentage: usdtD,
-            stablecoinLiquidityUSD: total * (usdtD / 100.0),
+            stablecoinDominancePercentage: stableD,
+            totalStablecoinLiquidityUSD: totalStablesUSD,
+            topStablecoins: stablecoins,
             actionableSummary: summary
         )
     }
@@ -302,8 +411,9 @@ public actor MacroIndicesDataProvider {
         case .total3: return 8.75e11
         case .btcD: return 58.34
         case .ethD: return 11.32
-        case .usdtD: return 6.35
-        case .othersD: return 23.99
+        case .stableD: return 10.88
+        case .usdtD: return 6.37
+        case .othersD: return 19.46
         }
     }
     
@@ -325,7 +435,8 @@ public actor MacroIndicesDataProvider {
         case .total3: volatility = 0.028
         case .btcD: volatility = 0.006
         case .ethD: volatility = 0.010
-        case .usdtD: volatility = 0.008
+        case .stableD: volatility = 0.005
+        case .usdtD: volatility = 0.006
         case .othersD: volatility = 0.018
         }
         
