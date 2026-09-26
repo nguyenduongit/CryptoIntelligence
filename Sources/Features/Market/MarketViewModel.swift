@@ -35,6 +35,7 @@ public enum MarketValuationSection: String, CaseIterable, Identifiable, Sendable
 
 public enum GlobalMacroSection: String, CaseIterable, Identifiable, Sendable {
     case all = "Toàn Cảnh Vĩ Mô"
+    case valuation = "Vốn Hóa Thị Trường"
     case centralBanks = "Ngân Hàng Trung Ương & Lãi Suất"
     case inflation = "Lạm Phát & Việc Làm"
     case intermarket = "Tương Quan Liên Thị Trường"
@@ -46,6 +47,7 @@ public enum GlobalMacroSection: String, CaseIterable, Identifiable, Sendable {
     public var iconName: String {
         switch self {
         case .all: return "globe.americas.fill"
+        case .valuation: return "chart.pie.fill"
         case .centralBanks: return "building.columns.fill"
         case .inflation: return "gauge.with.dots.needle.50percent"
         case .intermarket: return "arrow.triangle.swap"

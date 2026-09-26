@@ -9,57 +9,66 @@ public struct MarketGlobalMacroHubView: View {
     }
     
     public var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                // 1. Full-Width 6-Block Macro Ticker Grid (DXY, Gold, US10Y, SPX, NDX, Oil)
-                macroTickerRibbon
-                
-                // 2. Macro Risk-On / Risk-Off Sentiment Gauge
-                macroRiskGaugeBanner
-                
-                // 3. Dynamic Content Grid based on selected section
-                switch viewModel.selectedGlobalMacroSection {
-                case .all:
-                    HStack(alignment: .top, spacing: 14) {
-                        VStack(spacing: 14) {
+        Group {
+            if viewModel.selectedGlobalMacroSection == .valuation {
+                MarketValuationHubView(viewModel: viewModel)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        // 1. Full-Width 6-Block Macro Ticker Grid (DXY, Gold, US10Y, SPX, NDX, Oil)
+                        macroTickerRibbon
+                        
+                        // 2. Macro Risk-On / Risk-Off Sentiment Gauge
+                        macroRiskGaugeBanner
+                        
+                        // 3. Dynamic Content Grid based on selected section
+                        switch viewModel.selectedGlobalMacroSection {
+                        case .all:
+                            HStack(alignment: .top, spacing: 14) {
+                                VStack(spacing: 14) {
+                                    CentralBanksPolicyCardView(centralBanks: macroData.centralBanks)
+                                    InflationLaborCardView(
+                                        inflationMetrics: macroData.inflationMetrics,
+                                        unemploymentRate: macroData.unemploymentRate,
+                                        nonFarmPayrollsK: macroData.nonFarmPayrollsK
+                                    )
+                                }
+                                .frame(maxWidth: .infinity)
+                                
+                                VStack(spacing: 14) {
+                                    GlobalLiquidityM2ChartCardView(m2History: macroData.m2History)
+                                    CrossAssetCorrelationCardView(crossAssets: macroData.crossAssets)
+                                }
+                                .frame(maxWidth: .infinity)
+                            }
+                            MacroEconomicCalendarCardView(events: macroData.upcomingEvents)
+                            
+                        case .valuation:
+                            EmptyView()
+                            
+                        case .centralBanks:
                             CentralBanksPolicyCardView(centralBanks: macroData.centralBanks)
+                            
+                        case .inflation:
                             InflationLaborCardView(
                                 inflationMetrics: macroData.inflationMetrics,
                                 unemploymentRate: macroData.unemploymentRate,
                                 nonFarmPayrollsK: macroData.nonFarmPayrollsK
                             )
-                        }
-                        .frame(maxWidth: .infinity)
-                        
-                        VStack(spacing: 14) {
-                            GlobalLiquidityM2ChartCardView(m2History: macroData.m2History)
+                            
+                        case .intermarket:
                             CrossAssetCorrelationCardView(crossAssets: macroData.crossAssets)
+                            
+                        case .liquidityM2:
+                            GlobalLiquidityM2ChartCardView(m2History: macroData.m2History)
+                            
+                        case .calendar:
+                            MacroEconomicCalendarCardView(events: macroData.upcomingEvents)
                         }
-                        .frame(maxWidth: .infinity)
                     }
-                    MacroEconomicCalendarCardView(events: macroData.upcomingEvents)
-                    
-                case .centralBanks:
-                    CentralBanksPolicyCardView(centralBanks: macroData.centralBanks)
-                    
-                case .inflation:
-                    InflationLaborCardView(
-                        inflationMetrics: macroData.inflationMetrics,
-                        unemploymentRate: macroData.unemploymentRate,
-                        nonFarmPayrollsK: macroData.nonFarmPayrollsK
-                    )
-                    
-                case .intermarket:
-                    CrossAssetCorrelationCardView(crossAssets: macroData.crossAssets)
-                    
-                case .liquidityM2:
-                    GlobalLiquidityM2ChartCardView(m2History: macroData.m2History)
-                    
-                case .calendar:
-                    MacroEconomicCalendarCardView(events: macroData.upcomingEvents)
+                    .padding(14)
                 }
             }
-            .padding(14)
         }
         .background(AppTheme.darkBackground)
     }

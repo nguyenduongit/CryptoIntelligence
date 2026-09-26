@@ -28,9 +28,6 @@ public struct SidebarContainerView: View {
                     case .coin:
                         WatchlistView(viewModel: watchlistVM, selectedSymbol: $selectedSymbol)
                         
-                    case .valuation:
-                        PlaceholderSidebar(title: "Vốn Hóa & Tỷ Trọng", icon: "chart.pie.fill", note: "Sidebar phân hệ vốn hóa tạm thời để trống theo thiết kế")
-                        
                     case .globalMacro:
                         if let marketVM {
                             GlobalMacroSidebarView(viewModel: marketVM)

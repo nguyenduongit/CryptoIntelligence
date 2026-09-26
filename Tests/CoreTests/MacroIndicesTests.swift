@@ -190,7 +190,8 @@ struct MacroIndicesTests {
         #expect(modes.contains(.screener))
         
         #expect(MarketValuationSection.allCases.count == 2)
-        #expect(GlobalMacroSection.allCases.count == 6)
+        #expect(GlobalMacroSection.allCases.count == 7)
+        #expect(GlobalMacroSection.allCases.contains(.valuation))
         #expect(MoversCategorySelection.allCases.count == 4)
         #expect(ScreenerPresetSelection.allCases.count == 6)
         

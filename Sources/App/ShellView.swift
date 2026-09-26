@@ -34,9 +34,6 @@ public struct ShellView: View {
                             router: router
                         )
                         
-                    case .valuation:
-                        MarketValuationHubView(viewModel: marketVM)
-                        
                     case .globalMacro:
                         MarketGlobalMacroHubView(viewModel: marketVM)
                         
