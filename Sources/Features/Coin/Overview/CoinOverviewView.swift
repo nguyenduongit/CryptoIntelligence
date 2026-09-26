@@ -64,6 +64,10 @@ public struct CoinOverviewView: View {
                         .stroke(AppTheme.darkBorder, lineWidth: 1)
                 )
                 
+                // 1.5. Relative Strength Ribbon (vs BTC / ETH)
+                let coinChange = item?.priceChange24h ?? 0.0
+                RelativeStrengthRibbonView(symbol: symbol, coinChange24h: coinChange)
+                
                 if isLoading && report == nil {
                     VStack(spacing: 12) {
                         ProgressView()

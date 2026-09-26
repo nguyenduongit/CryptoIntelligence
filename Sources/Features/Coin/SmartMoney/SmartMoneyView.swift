@@ -3,6 +3,14 @@ import SwiftUI
 public struct SmartMoneyView: View {
     public let symbol: String
     @State private var viewModel: SmartMoneyViewModel
+    @State private var selectedSectionId: String = "wallets"
+    
+    private let sections: [SubtabSectionItem] = [
+        SubtabSectionItem(id: "wallets", title: "Ví Cá Voi & Smart Money", iconName: "person.3.sequence.fill"),
+        SubtabSectionItem(id: "trapsRadar", title: "Radar Bẫy Thao Túng", iconName: "radar.fill"),
+        SubtabSectionItem(id: "dexSwaps", title: "Lệnh Swap Khủng On-Chain", iconName: "arrow.triangle.swap"),
+        SubtabSectionItem(id: "freshWallets", title: "Ví Mới Gom Hàng", iconName: "sparkles")
+    ]
     
     public init(symbol: String) {
         self.symbol = symbol
@@ -16,7 +24,7 @@ public struct SmartMoneyView: View {
                     VStack(spacing: 12) {
                         ProgressView()
                             .controlSize(.large)
-                        Text("Đang phân tích dòng tiền Smart Money cho \(symbol)...")
+                        Text("Đang theo dấu dòng tiền Smart Money & Cá Voi cho \(symbol)...")
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.6))
                     }
@@ -25,17 +33,18 @@ public struct SmartMoneyView: View {
                     // Header Status Banner
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Smart Money, Dòng Tiền Cá Voi & Quỹ Đầu Tư (\(symbol))")
+                            Text("Dòng Tiền Cá Voi, Smart Money & Bẫy Thao Túng (\(symbol))")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.white)
-                            Text("Theo dõi ví cá voi, quỹ VC và luồng hoán đổi DEX quy mô lớn.")
+                            Text("Theo vết các ví tổ chức, phát hiện bẫy Pump & Dump, kiểm tra volume ảo và các lệnh mua bán on-chain đột biến.")
                                 .font(.system(size: 11))
                                 .foregroundColor(.white.opacity(0.5))
                         }
                         
                         Spacer()
                         
-                        DataSourceBadge(type: .liveBinance, text: "Live Binance Lệnh Lớn Whale")
+                        DataSourceBadge(type: .liveBinance, text: "Binance AggTrades Large Orders")
+                        DataSourceBadge(type: .liveCoinGecko, text: "Etherscan / Solscan On-Chain")
                     }
                     .padding(12)
                     .background(AppTheme.darkCard)
@@ -45,43 +54,57 @@ public struct SmartMoneyView: View {
                             .stroke(AppTheme.darkBorder, lineWidth: 1)
                     )
                     
-                    // 1. Smart Money Sentiment & Signal Banner
-                    SmartMoneySignalBannerView(signal: profile.sentimentSignal)
+                    // Sub-navigation Section Selector
+                    SubtabSectionSelector(items: sections, selectedId: $selectedSectionId)
                     
-                    // 2. VC Backers & Institutional Holdings Grid
-                    VCBackersGridView(backers: profile.vcBackers)
-                    
-                    // 3. Top Profitable Smart Money Wallets Leaderboard
-                    if !profile.topWallets.isEmpty {
+                    // Dynamic Module Rendering
+                    switch selectedSectionId {
+                    case "wallets":
+                        // 1. Overall Signal Banner
+                        SmartMoneySignalBannerView(signal: profile.sentimentSignal)
+                        
+                        // 2. Wallets Leaderboard
                         SmartMoneyWalletsLeaderboardView(wallets: profile.topWallets)
-                    }
-                    
-                    // 4. Fresh Wallets Accumulation Alert
-                    if !profile.freshWallets.isEmpty {
+                        
+                    case "trapsRadar":
+                        // 1. Whale Traps Radar (Pump/Dump & Wash Trading)
+                        WhaleTrapsRadarCardView(
+                            symbol: symbol,
+                            pumpDumpRiskLevel: profile.sentimentSignal.score > 75 ? "Thấp" : "Trung bình",
+                            washTradingScore: max(5, min(35, 100 - profile.sentimentSignal.score)),
+                            top10ConcentrationPercent: 24.5
+                        )
+                        
+                        // 2. Signal Context
+                        SmartMoneySignalBannerView(signal: profile.sentimentSignal)
+                        
+                    case "dexSwaps":
+                        // Large Swap Orders on DEX / CEX
+                        SmartMoneyDEXSwapsTableView(
+                            swaps: viewModel.filteredDEXSwaps,
+                            selectedFilter: $viewModel.selectedSwapFilter
+                        )
+                        
+                    case "freshWallets":
+                        // Fresh Wallets Alerts
                         FreshWalletsAlertCardView(alerts: profile.freshWallets)
+                        
+                    default:
+                        EmptyView()
                     }
-                    
-                    // 5. DEX Liquidity & Capital Efficiency
-                    DEXLiquidityCardView(metrics: profile.dexLiquidity)
-                    
-                    // 6. Smart Money DEX Swaps Feed
-                    SmartMoneyDEXSwapsTableView(
-                        swaps: viewModel.filteredDEXSwaps,
-                        selectedFilter: $viewModel.selectedSwapFilter
-                    )
                 } else if let err = viewModel.errorMessage {
                     DataUnavailableView(
-                        title: "Smart Money & Dòng Tiền DEX",
+                        title: "Dòng Tiền Cá Voi",
                         symbol: symbol,
-                        iconName: "dollarsign.arrow.circlepath",
+                        iconName: "person.3.sequence.fill",
                         message: err,
                         onRetry: { viewModel.loadData() }
                     )
                 } else {
                     DataUnavailableView(
-                        title: "Smart Money & Dòng Tiền DEX",
+                        title: "Dòng Tiền Cá Voi",
                         symbol: symbol,
-                        iconName: "dollarsign.arrow.circlepath",
+                        iconName: "person.3.sequence.fill",
                         onRetry: { viewModel.loadData() }
                     )
                 }

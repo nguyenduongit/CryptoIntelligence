@@ -3,6 +3,13 @@ import SwiftUI
 public struct TokenomicsView: View {
     public let symbol: String
     @State private var viewModel: TokenomicsViewModel
+    @State private var selectedSectionId: String = "supply"
+    
+    private let sections: [SubtabSectionItem] = [
+        SubtabSectionItem(id: "supply", title: "Nguồn Cung & Vốn Hóa", iconName: "dollarsign.circle.fill"),
+        SubtabSectionItem(id: "onchainValuation", title: "Định Giá On-Chain (MVRV)", iconName: "gauge.with.needle.fill"),
+        SubtabSectionItem(id: "vesting", title: "Lịch Mở Khóa & Vesting", iconName: "lock.open.trianglebadge.exclamationmark.fill")
+    ]
     
     public init(symbol: String) {
         self.symbol = symbol
@@ -16,7 +23,7 @@ public struct TokenomicsView: View {
                     VStack(spacing: 12) {
                         ProgressView()
                             .controlSize(.large)
-                        Text("Đang tải dữ liệu Tokenomics cho \(symbol)...")
+                        Text("Đang tải dữ liệu Định giá & Tokenomics cho \(symbol)...")
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.6))
                     }
@@ -25,18 +32,18 @@ public struct TokenomicsView: View {
                     // Header Status Banner
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Tokenomics, Phân Bổ & Lịch Mở Khóa Vesting (\(symbol))")
+                            Text("Định Giá, Nguồn Cung & Lịch Mở Khóa (\(symbol))")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.white)
-                            Text("Mô hình cung tiền, lịch vesting và phân tích lạm phát / đốt token.")
+                            Text("Thẩm định vốn hóa thực tế, rủi ro pha loãng, định giá on-chain MVRV và lộ trình phát thải.")
                                 .font(.system(size: 11))
                                 .foregroundColor(.white.opacity(0.5))
                         }
                         
                         Spacer()
                         
-                        DataSourceBadge(type: .liveBinance, text: "FDV Giá Live Binance")
-                        DataSourceBadge(type: .liveCoinGecko, text: "Live CoinGecko Supply & Vesting")
+                        DataSourceBadge(type: .liveBinance, text: "FDV Live Binance")
+                        DataSourceBadge(type: .liveCoinGecko, text: "CoinGecko & Glassnode Model")
                     }
                     .padding(12)
                     .background(AppTheme.darkCard)
@@ -46,35 +53,63 @@ public struct TokenomicsView: View {
                             .stroke(AppTheme.darkBorder, lineWidth: 1)
                     )
                     
-                    // 1. Supply & Valuation Summary Cards
-                    SupplyValuationCardsView(
-                        metrics: profile.supplyMetrics,
-                        tokenStandard: profile.tokenStandard,
-                        useCases: profile.primaryUseCases
-                    )
+                    // Sub-navigation Section Selector
+                    SubtabSectionSelector(items: sections, selectedId: $selectedSectionId)
                     
-                    // 2. Token Allocation Breakdown (Donut + Legend)
-                    TokenAllocationDonutView(
-                        allocations: profile.allocations,
-                        selectedAllocation: $viewModel.selectedAllocation
-                    )
-                    
-                    // 3. 5-Year Vesting Emission Curve
-                    if !profile.vestingSchedule.isEmpty {
-                        VestingEmissionCurveView(schedule: profile.vestingSchedule)
+                    // Dynamic Content based on selected section
+                    switch selectedSectionId {
+                    case "supply":
+                        // 1. Supply & Valuation Summary Cards
+                        SupplyValuationCardsView(
+                            metrics: profile.supplyMetrics,
+                            tokenStandard: profile.tokenStandard,
+                            useCases: profile.primaryUseCases
+                        )
+                        
+                        // 2. Token Allocation Breakdown (Donut + Legend)
+                        TokenAllocationDonutView(
+                            allocations: profile.allocations,
+                            selectedAllocation: $viewModel.selectedAllocation
+                        )
+                        
+                        // 3. Token Utility & Deflationary Matrix
+                        TokenUtilityMatrixCardView(utility: profile.utilityInfo)
+                        
+                    case "onchainValuation":
+                        // 1. On-Chain Valuation (Realized Price & MVRV)
+                        let curPrice = profile.supplyMetrics.circulatingSupply > 0
+                            ? (profile.supplyMetrics.marketCapUSD / profile.supplyMetrics.circulatingSupply)
+                            : 0.0
+                        OnChainValuationCardsView(
+                            metrics: profile.supplyMetrics,
+                            currentPrice: curPrice
+                        )
+                        
+                        // 2. Summary of Supply Context
+                        SupplyValuationCardsView(
+                            metrics: profile.supplyMetrics,
+                            tokenStandard: profile.tokenStandard,
+                            useCases: profile.primaryUseCases
+                        )
+                        
+                    case "vesting":
+                        // 1. 5-Year Vesting Emission Curve
+                        if !profile.vestingSchedule.isEmpty {
+                            VestingEmissionCurveView(schedule: profile.vestingSchedule)
+                        }
+                        
+                        // 2. Upcoming Unlocks Timeline & Cliff Details
+                        UpcomingUnlocksTimelineView(
+                            unlocks: profile.upcomingUnlocks,
+                            vestingNotes: profile.vestingNotes
+                        )
+                        
+                    default:
+                        EmptyView()
                     }
-                    
-                    // 4. Token Utility & Deflationary Matrix
-                    TokenUtilityMatrixCardView(utility: profile.utilityInfo)
-                    
-                    // 5. Upcoming Unlocks Timeline & Cliff Details
-                    UpcomingUnlocksTimelineView(
-                        unlocks: profile.upcomingUnlocks,
-                        vestingNotes: profile.vestingNotes
-                    )
                 } else if let err = viewModel.errorMessage {
                     DataUnavailableView(
-                        title: "Tokenomics & Lịch Vesting",
+                        title: "Định Giá & Tokenomics",
                         symbol: symbol,
                         iconName: "chart.pie.fill",
                         message: err,
@@ -82,7 +117,7 @@ public struct TokenomicsView: View {
                     )
                 } else {
                     DataUnavailableView(
-                        title: "Tokenomics & Lịch Vesting",
+                        title: "Định Giá & Tokenomics",
                         symbol: symbol,
                         iconName: "chart.pie.fill",
                         onRetry: { viewModel.loadData() }

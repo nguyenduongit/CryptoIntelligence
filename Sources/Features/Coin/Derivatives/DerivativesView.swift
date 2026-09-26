@@ -3,6 +3,14 @@ import SwiftUI
 public struct DerivativesView: View {
     public let symbol: String
     @State private var viewModel: DerivativesViewModel
+    @State private var selectedSectionId: String = "futures"
+    
+    private let sections: [SubtabSectionItem] = [
+        SubtabSectionItem(id: "futures", title: "Tổng Quan Futures & Funding", iconName: "chart.line.uptrend.xyaxis"),
+        SubtabSectionItem(id: "heatmap", title: "Bản Đồ Cụm Thanh Lý", iconName: "flame.fill"),
+        SubtabSectionItem(id: "huntRadar", title: "Radar Săn Thanh Lý", iconName: "bolt.shield.fill"),
+        SubtabSectionItem(id: "orderbook", title: "Sổ Lệnh & Tường Mua/Bán", iconName: "square.stack.3d.down.right.fill")
+    ]
     
     public init(symbol: String) {
         self.symbol = symbol
@@ -28,15 +36,15 @@ public struct DerivativesView: View {
                             Text("Phái Sinh, Funding Rate & Bản Đồ Thanh Lý (\(symbol))")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.white)
-                            Text("Dữ liệu phái sinh tham chiếu tổng hợp đa sàn và phân tích liquidation clusters.")
+                            Text("Dữ liệu phái sinh tham chiếu tổng hợp đa sàn, bản đồ cụm thanh lý và radar phát hiện bẫy săn râu nến.")
                                 .font(.system(size: 11))
                                 .foregroundColor(.white.opacity(0.5))
                         }
                         
                         Spacer()
                         
-                        DataSourceBadge(type: .liveBinance, text: "Live Spot & Sổ Lệnh Depth")
-                        DataSourceBadge(type: .liveBinance, text: "Live Binance Futures OI/Funding")
+                        DataSourceBadge(type: .liveBinance, text: "Binance Spot Orderbook")
+                        DataSourceBadge(type: .liveBinance, text: "Binance Futures OI/Funding")
                     }
                     .padding(12)
                     .background(AppTheme.darkCard)
@@ -46,60 +54,53 @@ public struct DerivativesView: View {
                             .stroke(AppTheme.darkBorder, lineWidth: 1)
                     )
                     
-                    // Top Section Filter Selector Bar
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(DerivativesSectionFilter.allCases) { sec in
-                                Button {
-                                    viewModel.selectedSection = sec
-                                } label: {
-                                    HStack(spacing: 5) {
-                                        Image(systemName: iconForSection(sec))
-                                            .font(.system(size: 10))
-                                        Text(sec.rawValue)
-                                            .font(.system(size: 11, weight: viewModel.selectedSection == sec ? .bold : .medium))
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(viewModel.selectedSection == sec ? AppTheme.accentBlue : AppTheme.darkCard)
-                                    .foregroundColor(viewModel.selectedSection == sec ? .white : .white.opacity(0.7))
-                                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6)
-                                            .stroke(viewModel.selectedSection == sec ? AppTheme.accentBlue : AppTheme.darkBorder, lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
+                    // Sub-navigation Section Selector
+                    SubtabSectionSelector(items: sections, selectedId: $selectedSectionId)
                     
-                    // 1. Liquidation Heatmap & Squeeze Targets
-                    if viewModel.selectedSection == .all || viewModel.selectedSection == .heatmap {
-                        LiquidationHeatmapCardView(data: profile.heatmapData)
-                    }
-                    
-                    // 2. Multi-Exchange Funding Rates & Arbitrage
-                    if viewModel.selectedSection == .all || viewModel.selectedSection == .funding {
+                    // Dynamic Content based on selected section
+                    switch selectedSectionId {
+                    case "futures":
+                        // 1. Funding Rate Arbitrage & Multi-Exchange
                         FundingRateArbitrageCardView(rates: profile.exchangeFundingRates, history: profile.fundingHistory)
-                    }
-                    
-                    // 3. Open Interest & Long/Short Sentiment
-                    if viewModel.selectedSection == .all || viewModel.selectedSection == .openInterest {
+                        
+                        // 2. Open Interest & Long/Short Sentiment
                         OpenInterestSentimentCardView(metrics: profile.openInterest)
-                    }
-                    
-                    // 4. Institutional Orderbook Depth Walls
-                    if viewModel.selectedSection == .all || viewModel.selectedSection == .orderbook {
+                        
+                    case "heatmap":
+                        // 1. Full Liquidation Heatmap
+                        LiquidationHeatmapCardView(data: profile.heatmapData)
+                        
+                        // 2. Quick Targets
+                        LiquidationHuntRadarCardView(data: profile.heatmapData)
+                        
+                    case "huntRadar":
+                        // 1. Liquidation Hunt Radar & Squeeze Target Cards
+                        LiquidationHuntRadarCardView(data: profile.heatmapData)
+                        
+                        // 2. Heatmap Visualizer
+                        LiquidationHeatmapCardView(data: profile.heatmapData)
+                        
+                    case "orderbook":
+                        // Institutional Orderbook Depth Walls
                         OrderbookDepthWallsCardView(walls: profile.orderbookWalls)
+                        
+                    default:
+                        EmptyView()
                     }
-                } else if !viewModel.isLoading {
+                } else if let err = viewModel.errorMessage {
                     DataUnavailableView(
+                        title: "Phái Sinh & Thanh Lý",
                         symbol: symbol,
-                        moduleName: "Phái Sinh, Funding Rate & Bản Đồ Thanh Lý",
-                        retryAction: {
-                            viewModel.loadData()
-                        }
+                        iconName: "bolt.shield.fill",
+                        message: err,
+                        onRetry: { viewModel.loadData() }
+                    )
+                } else {
+                    DataUnavailableView(
+                        title: "Phái Sinh & Thanh Lý",
+                        symbol: symbol,
+                        iconName: "bolt.shield.fill",
+                        onRetry: { viewModel.loadData() }
                     )
                 }
             }
@@ -111,16 +112,6 @@ public struct DerivativesView: View {
         }
         .onChange(of: symbol) { _, newSym in
             viewModel.setSymbol(newSym)
-        }
-    }
-    
-    private func iconForSection(_ sec: DerivativesSectionFilter) -> String {
-        switch sec {
-        case .all: return "square.grid.2x2.fill"
-        case .heatmap: return "flame.fill"
-        case .funding: return "percent"
-        case .openInterest: return "chart.xyaxis.line"
-        case .orderbook: return "square.stack.3d.down.right.fill"
         }
     }
 }

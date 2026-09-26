@@ -11,13 +11,12 @@ public enum MainTab: String, CaseIterable, Identifiable {
 
 public enum CoinSubtab: String, CaseIterable, Identifiable {
     case overview = "Tổng quan"
-    case chart = "Chart"
-    case derivatives = "Phái sinh & Thanh lý"
-    case tokenomics = "Tokenomics"
-    case onchain = "On-chain"
-    case smartMoney = "Smart Money"
-    case project = "Dự án"
-    case securityLegal = "Bảo mật & Pháp lý"
+    case chart = "Biểu đồ"
+    case valuation = "Định giá"
+    case liquidity = "Thanh khoản"
+    case derivatives = "Phái sinh"
+    case whales = "Cá voi"
+    case profile = "Hồ sơ"
     case notes = "Ghi chú"
     
     public var id: String { rawValue }

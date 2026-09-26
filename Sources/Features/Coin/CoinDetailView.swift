@@ -113,18 +113,16 @@ public struct CoinDetailView: View {
                         layout: $multiChartLayout,
                         showRelativeStrength: $showRelativeStrength
                     )
+                case .valuation:
+                    TokenomicsView(symbol: symbol)
+                case .liquidity:
+                    LiquidityView(symbol: symbol)
                 case .derivatives:
                     DerivativesView(symbol: symbol)
-                case .tokenomics:
-                    TokenomicsView(symbol: symbol)
-                case .onchain:
-                    OnChainView(symbol: symbol)
-                case .smartMoney:
+                case .whales:
                     SmartMoneyView(symbol: symbol)
-                case .project:
-                    ProjectProfileView(symbol: symbol)
-                case .securityLegal:
-                    SecurityLegalView(symbol: symbol)
+                case .profile:
+                    ProfileView(symbol: symbol)
                 case .notes:
                     NotesView(symbol: symbol)
                 }

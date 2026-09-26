@@ -33,6 +33,12 @@ public struct TokenSupplyMetrics: Sendable, Codable, Equatable {
     public var isBurnActive: Bool
     public var burnedTokens: Double?
     
+    // On-Chain Valuation Metrics
+    public var realizedPriceUSD: Double?
+    public var realizedCapUSD: Double?
+    public var mvrvRatio: Double?
+    public var cycleValuationStatus: String?
+    
     public init(
         circulatingSupply: Double,
         totalSupply: Double,
@@ -42,7 +48,11 @@ public struct TokenSupplyMetrics: Sendable, Codable, Equatable {
         mcFdvRatio: Double,
         annualInflationRate: Double? = nil,
         isBurnActive: Bool = false,
-        burnedTokens: Double? = nil
+        burnedTokens: Double? = nil,
+        realizedPriceUSD: Double? = nil,
+        realizedCapUSD: Double? = nil,
+        mvrvRatio: Double? = nil,
+        cycleValuationStatus: String? = nil
     ) {
         self.circulatingSupply = circulatingSupply
         self.totalSupply = totalSupply
@@ -53,6 +63,10 @@ public struct TokenSupplyMetrics: Sendable, Codable, Equatable {
         self.annualInflationRate = annualInflationRate
         self.isBurnActive = isBurnActive
         self.burnedTokens = burnedTokens
+        self.realizedPriceUSD = realizedPriceUSD
+        self.realizedCapUSD = realizedCapUSD
+        self.mvrvRatio = mvrvRatio
+        self.cycleValuationStatus = cycleValuationStatus
     }
 }
 

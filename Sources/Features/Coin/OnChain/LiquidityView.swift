@@ -1,0 +1,158 @@
+import SwiftUI
+
+public struct LiquidityView: View {
+    public let symbol: String
+    @State private var viewModel: LiquidityViewModel
+    
+    private let sections: [SubtabSectionItem] = [
+        SubtabSectionItem(id: "cexDex", title: "Tỷ Trọng CEX vs DEX", iconName: "arrow.left.arrow.right.circle.fill"),
+        SubtabSectionItem(id: "dexPools", title: "Pool AMM DEX", iconName: "drop.fill"),
+        SubtabSectionItem(id: "slippage", title: "Độ Sâu & Trượt Giá", iconName: "gauge.with.dots.needle.bottom.50percent"),
+        SubtabSectionItem(id: "exchangeFlows", title: "Dòng Tiền Nạp/Rút Sàn", iconName: "tray.and.arrow.down.fill")
+    ]
+    
+    public init(symbol: String) {
+        self.symbol = symbol
+        self._viewModel = State(initialValue: LiquidityViewModel(symbol: symbol))
+    }
+    
+    public var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if viewModel.isLoading && viewModel.liquidityProfile == nil {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text("Đang quét dữ liệu Thanh khoản & Pool AMM cho \(symbol)...")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 300)
+                } else if let liq = viewModel.liquidityProfile {
+                    // Header Status Banner
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Thanh Khoản, Pool AMM & Dòng Tiền Giao Dịch (\(symbol))")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("Phân tích cấu trúc thanh khoản tập trung CEX vs phi tập trung DEX, độ trượt giá và các bể AMM.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        
+                        Spacer()
+                        
+                        DataSourceBadge(type: .liveBinance, text: "Binance Spot Orderbook")
+                        DataSourceBadge(type: .liveCoinGecko, text: "DexScreener Live AMM")
+                    }
+                    .padding(12)
+                    .background(AppTheme.darkCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(AppTheme.darkBorder, lineWidth: 1)
+                    )
+                    
+                    // Sub-navigation Section Selector
+                    SubtabSectionSelector(items: sections, selectedId: $viewModel.selectedSectionId)
+                    
+                    // Dynamic Module Rendering
+                    switch viewModel.selectedSectionId {
+                    case "cexDex":
+                        // 1. CEX vs DEX Volume Split Card
+                        CexVsDexVolumeCardView(
+                            cexVolumeUSD: liq.cexVolume24hUSD,
+                            dexVolumeUSD: liq.dexVolume24hUSD,
+                            dexToCexRatio: liq.dexToCexVolumeRatio
+                        )
+                        
+                        // 2. DEX Pools Summary
+                        DEXLiquidityPoolsCardView(
+                            pools: liq.topPools,
+                            totalDEXLiquidityUSD: liq.totalLiquidityDEXUSD
+                        )
+                        
+                    case "dexPools":
+                        // 1. Dedicated DEX Liquidity Pools Table
+                        DEXLiquidityPoolsCardView(
+                            pools: liq.topPools,
+                            totalDEXLiquidityUSD: liq.totalLiquidityDEXUSD
+                        )
+                        
+                        // 2. Slippage overview for context
+                        SlippageCalculatorView(
+                            slippage10k: liq.estimatedSlippage10k,
+                            slippage50k: liq.estimatedSlippage50k,
+                            slippage100k: liq.estimatedSlippage100k,
+                            totalLiquidityUSD: liq.totalLiquidityDEXUSD
+                        )
+                        
+                    case "slippage":
+                        // 1. Slippage & Price Impact Simulator
+                        SlippageCalculatorView(
+                            slippage10k: liq.estimatedSlippage10k,
+                            slippage50k: liq.estimatedSlippage50k,
+                            slippage100k: liq.estimatedSlippage100k,
+                            totalLiquidityUSD: liq.totalLiquidityDEXUSD
+                        )
+                        
+                        // 2. CEX vs DEX Volume Reference
+                        CexVsDexVolumeCardView(
+                            cexVolumeUSD: liq.cexVolume24hUSD,
+                            dexVolumeUSD: liq.dexVolume24hUSD,
+                            dexToCexRatio: liq.dexToCexVolumeRatio
+                        )
+                        
+                    case "exchangeFlows":
+                        if let onchain = viewModel.onchainProfile {
+                            // Exchange Inflow/Outflow Cards
+                            HStack(alignment: .top, spacing: 14) {
+                                ExchangeFlowCardView(metrics: onchain.exchangeFlow)
+                                    .frame(maxWidth: .infinity)
+                                
+                                NetworkActivityCardView(metrics: onchain.networkActivity)
+                                    .frame(maxWidth: .infinity)
+                            }
+                            
+                            // Whale Transactions
+                            WhaleTransactionsTableView(
+                                transactions: onchain.recentWhaleTransactions,
+                                selectedFilter: .constant(.all)
+                            )
+                        } else {
+                            Text("Đang kết nối dữ liệu dòng tiền sàn...")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                        
+                    default:
+                        EmptyView()
+                    }
+                } else if let err = viewModel.errorMessage {
+                    DataUnavailableView(
+                        title: "Thanh Khoản & AMM Pools",
+                        symbol: symbol,
+                        iconName: "drop.fill",
+                        message: err,
+                        onRetry: { viewModel.loadData() }
+                    )
+                } else {
+                    DataUnavailableView(
+                        title: "Thanh Khoản & AMM Pools",
+                        symbol: symbol,
+                        iconName: "drop.fill",
+                        onRetry: { viewModel.loadData() }
+                    )
+                }
+            }
+            .padding(14)
+        }
+        .background(AppTheme.darkBackground)
+        .onAppear {
+            viewModel.loadData()
+        }
+        .onChange(of: symbol) { _, newSym in
+            viewModel.setSymbol(newSym)
+        }
+    }
+}
