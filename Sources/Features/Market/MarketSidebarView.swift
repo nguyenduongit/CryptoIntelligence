@@ -104,7 +104,7 @@ public struct MarketSidebarView: View {
             
             Spacer()
             
-            Text("6 PHÂN HỆ")
+            Text("5 PHÂN HỆ")
                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                 .foregroundColor(AppTheme.accentBlue)
                 .padding(.horizontal, 6)
@@ -185,8 +185,7 @@ public struct MarketSidebarView: View {
         switch mode {
         case .valuation: return "Vốn Hóa & Tỷ Trọng"
         case .globalMacro: return "Kinh Tế Vĩ Mô"
-        case .heatmap: return "Bản Đồ Nhiệt"
-        case .sectors: return "Ngành & Phân Khúc"
+        case .heatmap: return "Bản Đồ & Phân Khúc"
         case .movers: return "Top Biến Động"
         case .screener: return "Bộ Lọc & Radar"
         }
@@ -196,8 +195,7 @@ public struct MarketSidebarView: View {
         switch mode {
         case .valuation: return "TOTAL, TOTAL2/3, Dominance"
         case .globalMacro: return "Lãi suất, CPI, M2, Lịch sự kiện"
-        case .heatmap: return "Trực quan hóa biến động & Volume"
-        case .sectors: return "Layer 1, DeFi, AI, Meme, GameFi"
+        case .heatmap: return "Heatmap, Dòng tiền & Hiệu suất hệ"
         case .movers: return "Top Tăng/Giảm 24h & Đột biến Vol"
         case .screener: return "Quét tín hiệu kỹ thuật & On-chain"
         }
@@ -208,7 +206,6 @@ public struct MarketSidebarView: View {
         case .valuation: return AppTheme.cyan
         case .globalMacro: return AppTheme.accentBlue
         case .heatmap: return Color.purple
-        case .sectors: return AppTheme.orange
         case .movers: return AppTheme.upGreen
         case .screener: return Color.yellow
         }

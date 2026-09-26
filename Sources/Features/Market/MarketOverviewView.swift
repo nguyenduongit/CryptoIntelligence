@@ -49,20 +49,24 @@ public struct MarketOverviewView: View {
                 case .globalMacro:
                     MarketGlobalMacroHubView(viewModel: viewModel)
                 case .heatmap:
-                    MarketHeatmapView(
-                        tickers: viewModel.filteredTickers,
-                        onSelectSymbol: { sym in
-                            navigateToCoin(symbol: sym)
-                        }
-                    )
-                case .sectors:
-                    SectorFlowView(
-                        sectorPerformances: viewModel.sectorPerformances,
-                        onSelectSector: { sector in
-                            viewModel.selectedSector = sector
-                            viewModel.selectedViewMode = .heatmap
-                        }
-                    )
+                    if viewModel.selectedHeatmapSection == .heatmap {
+                        MarketHeatmapView(
+                            tickers: viewModel.filteredTickers,
+                            onSelectSymbol: { sym in
+                                navigateToCoin(symbol: sym)
+                            }
+                        )
+                    } else {
+                        SectorFlowView(
+                            sectorPerformances: viewModel.sectorPerformances,
+                            onSelectSector: { sector in
+                                viewModel.selectedSector = sector
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    viewModel.selectedHeatmapSection = .heatmap
+                                }
+                            }
+                        )
+                    }
                 case .movers:
                     MarketMoversView(
                         topGainers: viewModel.topGainers,
@@ -104,9 +108,7 @@ public struct MarketOverviewView: View {
                     case .globalMacro:
                         globalMacroSubtabs
                     case .heatmap:
-                        heatmapSubtabs
-                    case .sectors:
-                        sectorsSubtabs
+                        heatmapAndSectorSubtabs
                     case .movers:
                         moversSubtabs
                     case .screener:
@@ -209,67 +211,100 @@ public struct MarketOverviewView: View {
         }
     }
     
-    // 3. Heatmap Subtabs (Sector Filter Pills)
+    // 3. Merged Heatmap & Sectors Subtabs
     @ViewBuilder
-    private var heatmapSubtabs: some View {
-        ForEach(CryptoSector.allCases) { sector in
-            let isSelected = (viewModel.selectedSector == sector)
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    viewModel.selectedSector = sector
+    private var heatmapAndSectorSubtabs: some View {
+        HStack(spacing: 6) {
+            // Main View Switcher (Heatmap vs Sector Flow)
+            ForEach(MarketHeatmapSection.allCases) { sec in
+                let isSelected = (viewModel.selectedHeatmapSection == sec)
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        viewModel.selectedHeatmapSection = sec
+                    }
+                }) {
+                    HStack(spacing: 5) {
+                        Image(systemName: sec.iconName)
+                            .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                        Text(sec.rawValue)
+                            .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5.5)
+                    .background(isSelected ? Color.purple.opacity(0.25) : AppTheme.darkCard)
+                    .foregroundColor(isSelected ? .white : .white.opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(isSelected ? Color.purple.opacity(0.8) : AppTheme.darkBorder, lineWidth: 1)
+                    )
                 }
-            }) {
-                HStack(spacing: 4) {
-                    Image(systemName: sector.iconName)
-                        .font(.system(size: 10))
-                    Text(sector.rawValue)
-                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(isSelected ? Color.purple.opacity(0.25) : AppTheme.darkCard)
-                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isSelected ? Color.purple.opacity(0.7) : AppTheme.darkBorder, lineWidth: 1)
-                )
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            
+            Divider()
+                .frame(height: 18)
+                .background(AppTheme.darkBorder)
+                .padding(.horizontal, 2)
+            
+            // Sub-filters depending on active heatmap section
+            if viewModel.selectedHeatmapSection == .heatmap {
+                ForEach(CryptoSector.allCases) { sector in
+                    let isSelected = (viewModel.selectedSector == sector)
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            viewModel.selectedSector = sector
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: sector.iconName)
+                                .font(.system(size: 9.5))
+                            Text(sector.rawValue)
+                                .font(.system(size: 10.5, weight: isSelected ? .bold : .medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4.5)
+                        .background(isSelected ? AppTheme.accentBlue.opacity(0.2) : AppTheme.darkCard.opacity(0.6))
+                        .foregroundColor(isSelected ? .white : .white.opacity(0.65))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(isSelected ? AppTheme.accentBlue.opacity(0.6) : AppTheme.darkBorder.opacity(0.6), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                ForEach(MarketSortOption.allCases) { sort in
+                    let isSelected = (viewModel.sortBy == sort)
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            viewModel.sortBy = sort
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: sortIcon(sort))
+                                .font(.system(size: 9.5))
+                            Text(sort.rawValue)
+                                .font(.system(size: 10.5, weight: isSelected ? .bold : .medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4.5)
+                        .background(isSelected ? AppTheme.orange.opacity(0.2) : AppTheme.darkCard.opacity(0.6))
+                        .foregroundColor(isSelected ? .white : .white.opacity(0.65))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(isSelected ? AppTheme.orange.opacity(0.6) : AppTheme.darkBorder.opacity(0.6), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
     
-    // 4. Sector Flow Subtabs (Sort options)
-    @ViewBuilder
-    private var sectorsSubtabs: some View {
-        ForEach(MarketSortOption.allCases) { sort in
-            let isSelected = (viewModel.sortBy == sort)
-            Button(action: {
-                withAnimation(.easeInOut(duration: 0.15)) {
-                    viewModel.sortBy = sort
-                }
-            }) {
-                HStack(spacing: 4) {
-                    Image(systemName: sortIcon(sort))
-                        .font(.system(size: 10))
-                    Text(sort.rawValue)
-                        .font(.system(size: 11, weight: isSelected ? .bold : .medium))
-                }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(isSelected ? AppTheme.orange.opacity(0.22) : AppTheme.darkCard)
-                .foregroundColor(isSelected ? .white : .white.opacity(0.7))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(isSelected ? AppTheme.orange.opacity(0.6) : AppTheme.darkBorder, lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-    
-    // 5. Movers Subtabs (All, Gainers, Losers, Volume)
+    // 4. Movers Subtabs (All, Gainers, Losers, Volume)
     @ViewBuilder
     private var moversSubtabs: some View {
         ForEach(MoversCategorySelection.allCases) { cat in
@@ -299,7 +334,7 @@ public struct MarketOverviewView: View {
         }
     }
     
-    // 6. Screener Subtabs (Preset Signals)
+    // 5. Screener Subtabs (Preset Signals)
     @ViewBuilder
     private var screenerSubtabs: some View {
         ForEach(ScreenerPresetSelection.allCases) { preset in

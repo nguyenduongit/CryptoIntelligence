@@ -4,8 +4,7 @@ import Observation
 public enum MarketViewMode: String, CaseIterable, Identifiable, Sendable {
     case valuation = "Vốn hóa"
     case globalMacro = "Kinh tế"
-    case heatmap = "Bản đồ"
-    case sectors = "Phân khúc"
+    case heatmap = "Bản đồ & Ngành"
     case movers = "Biến động"
     case screener = "Bộ lọc"
     
@@ -16,9 +15,22 @@ public enum MarketViewMode: String, CaseIterable, Identifiable, Sendable {
         case .valuation: return "chart.pie.fill"
         case .globalMacro: return "globe.americas.fill"
         case .heatmap: return "square.grid.3x3.fill"
-        case .sectors: return "square.stack.3d.up.fill"
         case .movers: return "flame.fill"
         case .screener: return "line.3.horizontal.decrease.circle.fill"
+        }
+    }
+}
+
+public enum MarketHeatmapSection: String, CaseIterable, Identifiable, Sendable {
+    case heatmap = "Bản Đồ Nhiệt (Heatmap)"
+    case sectorFlow = "Dòng Tiền Phân Khúc (Sector Flow)"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .heatmap: return "square.grid.3x3.fill"
+        case .sectorFlow: return "square.stack.3d.up.fill"
         }
     }
 }
@@ -120,6 +132,7 @@ public final class MarketViewModel: @unchecked Sendable {
     public var selectedMacroIndex: MacroIndexType = .total
     public var selectedKLineTimeframe: String = "1D"
     public var selectedGlobalMacroSection: GlobalMacroSection = .all
+    public var selectedHeatmapSection: MarketHeatmapSection = .heatmap
     public var selectedMoversCategory: MoversCategorySelection = .all
     public var selectedScreenerPreset: ScreenerPresetSelection = .all
     public var isHeatmapSizingByVolume: Bool = false
