@@ -165,6 +165,42 @@ struct DerivativesAdvancedTests {
         #expect(cSuppressed == palette.previewColors[0].opacity(0.15))
     }
     
+    @Test("Test LiquidationHeatmap2D generation for low-priced assets like ADA")
+    func testLiquidationHeatmap2DLowPricedAssets() {
+        let provider = DerivativesDataProvider.shared
+        let adaHeatmap = provider.generateLiquidationHeatmap2D(
+            symbol: "ADAUSDT",
+            currentPrice: 0.256500,
+            baseAsset: "ADA",
+            timeframe: .hours24
+        )
+        
+        #expect(adaHeatmap.currentPrice == 0.256500)
+        #expect(adaHeatmap.minPrice < 0.256500)
+        #expect(adaHeatmap.maxPrice > 0.256500)
+        
+        // Price span must NOT be clamped to 1.0; for ADA it should be proportional (~0.05-0.08)
+        let priceSpan = adaHeatmap.maxPrice - adaHeatmap.minPrice
+        #expect(priceSpan < 0.15)
+        #expect(priceSpan > 0.02)
+        
+        // Current price must be centered (~45% to 55% of the range)
+        let ratio = (adaHeatmap.currentPrice - adaHeatmap.minPrice) / priceSpan
+        #expect(ratio >= 0.40 && ratio <= 0.60)
+        
+        // Check persistent horizontal price bands across slices
+        if adaHeatmap.slices.count >= 2 {
+            let slice0 = adaHeatmap.slices[0]
+            let slice1 = adaHeatmap.slices[1]
+            #expect(slice0.bands.count == slice1.bands.count)
+            for (b0, b1) in zip(slice0.bands, slice1.bands) {
+                #expect(b0.leverageTier == b1.leverageTier)
+                #expect(b0.side == b1.side)
+                #expect(abs(b0.price - b1.price) < 0.000001) // Price level is persistent across time
+            }
+        }
+    }
+    
     @Test("Test CryptoSector colors coverage")
     func testCryptoSectorColors() {
         for s in CryptoSector.allCases {

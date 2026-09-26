@@ -47,6 +47,7 @@ public struct LiquidationHeatmapCardView: View {
             symbol: cleanSymbol,
             currentPrice: data.currentPriceUSD,
             baseAsset: baseAsset,
+            cachedCandlePoints: heatmap2D?.candles ?? [],
             timeframe: selectedTimeframe
         )
     }

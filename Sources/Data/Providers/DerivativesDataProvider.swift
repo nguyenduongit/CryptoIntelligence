@@ -449,6 +449,7 @@ public actor DerivativesDataProvider {
         baseAsset: String,
         openInterestUSD: Double? = nil,
         historicalCandles: [Candle] = [],
+        cachedCandlePoints: [LiquidationCandlePoint] = [],
         timeframe: LiquidationTimeframe = .hours24
     ) -> LiquidationHeatmap2DData {
         let count = timeframe.sliceCount
@@ -484,12 +485,24 @@ public actor DerivativesDataProvider {
                     close: c.close
                 ))
             }
+        } else if !cachedCandlePoints.isEmpty {
+            if cachedCandlePoints.count >= count {
+                candlePoints = Array(cachedCandlePoints.suffix(count))
+            } else {
+                candlePoints = cachedCandlePoints
+            }
         } else {
+            // Generate a natural price trajectory ending smoothly at currentPrice
             for i in (0..<count).reversed() {
                 let t = now.addingTimeInterval(-Double(i) * intervalSec)
-                let factor = 1.0 - (Double(i) / Double(count)) * 0.01
-                let cPrice = currentPrice * factor
-                candlePoints.append(LiquidationCandlePoint(timestamp: t, open: cPrice * 0.999, high: cPrice * 1.002, low: cPrice * 0.998, close: cPrice))
+                let phase = Double(count - 1 - i) / Double(max(1, count - 1))
+                let wave = sin(phase * .pi * 2.5) * 0.012 + cos(phase * .pi * 4.0) * 0.006
+                let offset = (1.0 - phase) * wave
+                let cClose = currentPrice * (1.0 - offset)
+                let cOpen = cClose * (1.0 + (i % 2 == 0 ? -0.003 : 0.003))
+                let cHigh = max(cOpen, cClose) * 1.004
+                let cLow = min(cOpen, cClose) * 0.996
+                candlePoints.append(LiquidationCandlePoint(timestamp: t, open: cOpen, high: cHigh, low: cLow, close: cClose))
             }
         }
         
@@ -498,50 +511,100 @@ public actor DerivativesDataProvider {
         let minTrajectoryPrice = allLows.min() ?? (currentPrice * 0.95)
         let maxTrajectoryPrice = allHighs.max() ?? (currentPrice * 1.05)
         
-        let minPrice = min(minTrajectoryPrice * 0.94, currentPrice * 0.92)
-        let maxPrice = max(maxTrajectoryPrice * 1.06, currentPrice * 1.08)
-        
+        // 16 primary leverage tiers spanning from -10% to +10%
         let tierConfigs: [(percent: Double, tier: String, baseVol: Double, intensity: Double, side: LiquidationSide)] = [
-            (+1.0, "100x", 125_000_000, 0.95, .shortLiquidation),
-            (+2.0, "50x",  240_000_000, 0.88, .shortLiquidation),
-            (+3.5, "25x",  420_000_000, 1.00, .shortLiquidation),
-            (+5.0, "20x",  290_000_000, 0.75, .shortLiquidation),
-            (+7.5, "10x",  195_000_000, 0.60, .shortLiquidation),
-            (+10.0, "5x",  120_000_000, 0.42, .shortLiquidation),
+            // Short Liquidations ABOVE Current Price (Squeeze Targets for Bulls)
+            (+0.8, "100x", 140_000_000, 0.95, .shortLiquidation),
+            (+1.5, "75x",  190_000_000, 0.88, .shortLiquidation),
+            (+2.0, "50x",  260_000_000, 0.92, .shortLiquidation),
+            (+2.8, "35x",  340_000_000, 0.86, .shortLiquidation),
+            (+3.5, "25x",  450_000_000, 1.00, .shortLiquidation), // Primary Short Target
+            (+5.0, "20x",  310_000_000, 0.76, .shortLiquidation),
+            (+7.5, "10x",  210_000_000, 0.62, .shortLiquidation),
+            (+10.0, "5x",  130_000_000, 0.45, .shortLiquidation),
             
-            (-1.0, "100x", 115_000_000, 0.92, .longLiquidation),
-            (-2.0, "50x",  210_000_000, 0.85, .longLiquidation),
-            (-3.2, "25x",  390_000_000, 0.98, .longLiquidation),
-            (-5.0, "20x",  260_000_000, 0.70, .longLiquidation),
-            (-7.5, "10x",  180_000_000, 0.55, .longLiquidation),
-            (-10.0, "5x",  105_000_000, 0.38, .longLiquidation)
+            // Long Liquidations BELOW Current Price (Squeeze Targets for Bears)
+            (-0.8, "100x", 130_000_000, 0.92, .longLiquidation),
+            (-1.5, "75x",  180_000_000, 0.85, .longLiquidation),
+            (-2.0, "50x",  240_000_000, 0.89, .longLiquidation),
+            (-2.8, "35x",  320_000_000, 0.84, .longLiquidation),
+            (-3.2, "25x",  430_000_000, 0.98, .longLiquidation), // Primary Long Target
+            (-5.0, "20x",  280_000_000, 0.72, .longLiquidation),
+            (-7.5, "10x",  195_000_000, 0.58, .longLiquidation),
+            (-10.0, "5x",  115_000_000, 0.40, .longLiquidation)
         ]
+        
+        // Ensure bounds encompass all bands and trajectory, perfectly centering currentPrice
+        let minBound = min(minTrajectoryPrice, currentPrice * 0.895)
+        let maxBound = max(maxTrajectoryPrice, currentPrice * 1.105)
+        let minPrice = minBound * 0.985
+        let maxPrice = maxBound * 1.015
         
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "dd, HH:mm"
+        
+        // Precalculate earliest sweep index for each tier across candlePoints
+        var sweepIndices: [Int?] = []
+        for cfg in tierConfigs {
+            let bandPrice = currentPrice * (1.0 + cfg.percent / 100.0)
+            var sweepIdx: Int? = nil
+            for (cIdx, candle) in candlePoints.enumerated() {
+                if cfg.side == .shortLiquidation {
+                    if candle.high >= bandPrice {
+                        sweepIdx = cIdx
+                        break
+                    }
+                } else {
+                    if candle.low <= bandPrice {
+                        sweepIdx = cIdx
+                        break
+                    }
+                }
+            }
+            sweepIndices.append(sweepIdx)
+        }
         
         var slices: [LiquidationTimeSlice] = []
         var maxPeakVolume = 10_000_000.0 * scale
         
         for (idx, candle) in candlePoints.enumerated() {
             var bands: [LiquidationPriceBand] = []
+            let timeProgress = Double(idx) / Double(max(1, candlePoints.count - 1))
             
-            let subsequentHigh = candlePoints[idx...].map { $0.high }.max() ?? candle.high
-            let subsequentLow = candlePoints[idx...].map { $0.low }.min() ?? candle.low
-            
-            for cfg in tierConfigs {
-                let bandPrice = candle.close * (1.0 + cfg.percent / 100.0)
-                let vol = cfg.baseVol * scale * (0.85 + Double((idx + cfg.tier.count) % 5) * 0.08)
-                maxPeakVolume = max(maxPeakVolume, vol)
+            for (cfgIdx, cfg) in tierConfigs.enumerated() {
+                // Persistent horizontal price level across time
+                let bandPrice = currentPrice * (1.0 + cfg.percent / 100.0)
+                let sweepIdx = sweepIndices[cfgIdx]
                 
                 let isSwept: Bool
-                if cfg.side == .shortLiquidation {
-                    isSwept = subsequentHigh >= bandPrice
+                let effectiveIntensity: Double
+                let vol: Double
+                
+                if let sIdx = sweepIdx {
+                    if idx < sIdx {
+                        // Before the sweep: positions are open and building
+                        isSwept = false
+                        effectiveIntensity = cfg.intensity * (0.80 + 0.15 * (Double(idx) / Double(max(1, sIdx))))
+                        vol = cfg.baseVol * scale * 0.85
+                    } else if idx == sIdx {
+                        // At the sweep: liquidation cascade spike
+                        isSwept = true
+                        effectiveIntensity = min(1.0, cfg.intensity * 1.15)
+                        vol = cfg.baseVol * scale * 1.35
+                    } else {
+                        // After the sweep: pool has been cleared
+                        isSwept = true
+                        effectiveIntensity = 0.06 // Dims out below default threshold (0.20)
+                        vol = cfg.baseVol * scale * 0.08
+                    }
                 } else {
-                    isSwept = subsequentLow <= bandPrice
+                    // Level was NEVER touched by price: intact liquidity magnet
+                    isSwept = false
+                    effectiveIntensity = cfg.intensity * (0.75 + 0.25 * timeProgress)
+                    vol = cfg.baseVol * scale * (0.80 + 0.20 * timeProgress)
                 }
                 
-                let effectiveIntensity = isSwept ? (cfg.intensity * 0.2) : cfg.intensity
+                maxPeakVolume = max(maxPeakVolume, vol)
                 
                 bands.append(LiquidationPriceBand(
                     price: bandPrice,
