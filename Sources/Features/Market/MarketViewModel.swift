@@ -2,21 +2,21 @@ import SwiftUI
 import Observation
 
 public enum MarketViewMode: String, CaseIterable, Identifiable {
-    case screener = "Bộ lọc & Radar tín hiệu"
-    case heatmap = "Bản đồ nhiệt"
-    case movers = "Bảng xếp hạng"
-    case sectors = "Dòng vốn phân khúc"
-    case macro = "Kinh tế Vĩ mô"
+    case macro = "Vĩ mô"
+    case heatmap = "Bản đồ"
+    case sectors = "Phân khúc"
+    case movers = "Biến động"
+    case screener = "Bộ lọc"
     
     public var id: String { rawValue }
     
     public var iconName: String {
         switch self {
-        case .screener: return "radar"
-        case .heatmap: return "square.grid.3x3.fill"
-        case .movers: return "list.number"
-        case .sectors: return "chart.pie.fill"
         case .macro: return "globe.americas.fill"
+        case .heatmap: return "square.grid.3x3.fill"
+        case .sectors: return "chart.pie.fill"
+        case .movers: return "flame.fill"
+        case .screener: return "line.3.horizontal.decrease.circle.fill"
         }
     }
 }

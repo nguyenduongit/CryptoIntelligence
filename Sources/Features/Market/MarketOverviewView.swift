@@ -17,16 +17,10 @@ public struct MarketOverviewView: View {
     
     public var body: some View {
         VStack(spacing: 0) {
-            // 1. Top Sub-header & Filters Bar
+            // 1. Top Sub-header & Subtab Switcher Bar
             marketToolbar
             
-            // 2. Unified Macro & Derivatives Metrics Ribbon Bar
-            MarketMacroMetricsBarView(
-                globalMetrics: viewModel.globalMetrics,
-                derivativesMetrics: viewModel.derivativesMetrics
-            )
-            
-            // 3. Error Banner (if any)
+            // 2. Error Banner (if any)
             if let err = viewModel.errorMessage {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -47,26 +41,14 @@ public struct MarketOverviewView: View {
                 .background(AppTheme.warningYellow.opacity(0.15))
             }
             
-            // 4. Main View Mode Content
+            // 3. Main View Mode Content (Full Height, Uncluttered)
             Group {
                 switch viewModel.selectedViewMode {
-                case .screener:
-                    MarketScreenerMainView(
-                        router: router,
-                        selectedSymbol: $selectedSymbol
-                    )
+                case .macro:
+                    MacroHubView()
                 case .heatmap:
                     MarketHeatmapView(
                         tickers: viewModel.filteredTickers,
-                        onSelectSymbol: { sym in
-                            navigateToCoin(symbol: sym)
-                        }
-                    )
-                case .movers:
-                    MarketMoversView(
-                        topGainers: viewModel.topGainers,
-                        topLosers: viewModel.topLosers,
-                        topVolumes: viewModel.topVolumes,
                         onSelectSymbol: { sym in
                             navigateToCoin(symbol: sym)
                         }
@@ -79,8 +61,20 @@ public struct MarketOverviewView: View {
                             viewModel.selectedViewMode = .heatmap
                         }
                     )
-                case .macro:
-                    GlobalMacroView()
+                case .movers:
+                    MarketMoversView(
+                        topGainers: viewModel.topGainers,
+                        topLosers: viewModel.topLosers,
+                        topVolumes: viewModel.topVolumes,
+                        onSelectSymbol: { sym in
+                            navigateToCoin(symbol: sym)
+                        }
+                    )
+                case .screener:
+                    MarketScreenerMainView(
+                        router: router,
+                        selectedSymbol: $selectedSymbol
+                    )
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

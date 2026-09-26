@@ -71,11 +71,11 @@ public struct MarketSidebarView: View {
     
     private var headerTitle: String {
         switch viewModel.selectedViewMode {
-        case .heatmap: return "Phân Khúc Heatmap"
-        case .screener: return "Bộ Lọc Radar"
-        case .movers: return "Xếp Hạng & Độ Rộng"
-        case .sectors: return "Sức Mạnh Dòng Vốn"
         case .macro: return "Chỉ Số Vĩ Mô"
+        case .heatmap: return "Phân Khúc Bản Đồ"
+        case .sectors: return "Dòng Vốn Phân Khúc"
+        case .movers: return "Biến Động & Xếp Hạng"
+        case .screener: return "Bộ Lọc Kỹ Thuật"
         }
     }
 }
@@ -392,18 +392,36 @@ private struct MacroSidebarContent: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Key Indicators
+            // Macro Indices Quick Glance
             VStack(alignment: .leading, spacing: 6) {
-                Text("CHỈ SỐ VĨ MÔ TOÀN CẦU")
+                Text("CHỈ SỐ VỐN HÓA & THỊ PHẦN")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white.opacity(0.4))
                     .padding(.horizontal, 10)
                     .padding(.top, 4)
                 
-                macroItemCard(title: "Lãi suất Fed (Fed Funds)", value: "5.25% - 5.50%", subtitle: "Thắt chặt tiền tệ", color: AppTheme.orange)
-                macroItemCard(title: "Lạm phát CPI Mỹ", value: "2.9%", subtitle: "Mục tiêu dài hạn 2.0%", color: AppTheme.warningYellow)
-                macroItemCard(title: "Chỉ số USD (DXY)", value: "101.4", subtitle: "Xu hướng hạ nhiệt", color: AppTheme.cyan)
-                macroItemCard(title: "Trái phiếu US10Y", value: "3.78%", subtitle: "Lợi suất kỳ hạn 10 năm", color: AppTheme.accentBlue)
+                macroIndexPill(title: "TOTAL (Tổng Vốn Hóa)", subtitle: "Toàn bộ thị trường", icon: "chart.line.uptrend.xyaxis")
+                macroIndexPill(title: "TOTAL2 (Altcoins)", subtitle: "Toàn bộ Altcoins trừ BTC", icon: "sparkles")
+                macroIndexPill(title: "TOTAL3 (Mid/Low-Cap)", subtitle: "Trừ BTC & ETH", icon: "circle.grid.cross.fill")
+                macroIndexPill(title: "BTC.D (Thị Phần BTC)", subtitle: "Tỷ trọng thống trị", icon: "bitcoinsign.circle.fill")
+                macroIndexPill(title: "USDT.D (Stablecoin)", subtitle: "Dòng tiền mặt bên lề", icon: "dollarsign.circle.fill")
+            }
+            
+            Divider()
+                .background(AppTheme.darkBorder)
+                .padding(.horizontal, 10)
+            
+            // Global Macro
+            VStack(alignment: .leading, spacing: 6) {
+                Text("KINH TẾ TOÀN CẦU (MACRO)")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white.opacity(0.4))
+                    .padding(.horizontal, 10)
+                
+                macroItemCard(title: "Lãi suất Fed", value: "5.25% - 5.50%", subtitle: "Thắt chặt", color: AppTheme.orange)
+                macroItemCard(title: "Lạm phát CPI Mỹ", value: "2.9%", subtitle: "Hạ nhiệt", color: AppTheme.warningYellow)
+                macroItemCard(title: "Chỉ số USD (DXY)", value: "101.4", subtitle: "Xu hướng giảm", color: AppTheme.cyan)
+                macroItemCard(title: "Lợi suất US10Y", value: "3.78%", subtitle: "Trái phiếu 10 năm", color: AppTheme.accentBlue)
             }
             
             Divider()
@@ -412,7 +430,7 @@ private struct MacroSidebarContent: View {
             
             // Macro Risk Gauge
             VStack(alignment: .leading, spacing: 6) {
-                Text("ĐÁNH GIÁ RỦI RO VĨ MÔ")
+                Text("ĐÁNH GIÁ RỦI RO DÒNG VỐN")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white.opacity(0.4))
                     .padding(.horizontal, 10)
@@ -421,8 +439,8 @@ private struct MacroSidebarContent: View {
                     Circle()
                         .fill(AppTheme.upGreen)
                         .frame(width: 8, height: 8)
-                    Text("Trung Lập / Tích Cực")
-                        .font(.system(size: 12, weight: .bold))
+                    Text("Risk-On / Tích Lũy Bứt Phá")
+                        .font(.system(size: 11.5, weight: .bold))
                         .foregroundColor(AppTheme.upGreen)
                 }
                 .padding(8)
@@ -432,6 +450,30 @@ private struct MacroSidebarContent: View {
                 .padding(.horizontal, 8)
             }
         }
+    }
+    
+    private func macroIndexPill(title: String, subtitle: String, icon: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+                .foregroundColor(AppTheme.accentBlue)
+                .frame(width: 16)
+            
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.white)
+                Text(subtitle)
+                    .font(.system(size: 9.5))
+                    .foregroundColor(.white.opacity(0.45))
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(AppTheme.darkCard.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 6)
     }
     
     private func macroItemCard(title: String, value: String, subtitle: String, color: Color) -> some View {
