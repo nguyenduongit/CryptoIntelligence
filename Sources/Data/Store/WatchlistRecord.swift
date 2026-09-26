@@ -30,20 +30,28 @@ public struct WatchlistRecord: Codable, FetchableRecord, PersistableRecord {
     public init(item: WatchlistItem) {
         self.symbol = item.symbol
         self.baseAsset = item.baseAsset
-        self.tier = item.tier.rawValue
+        self.tier = item.customSector?.rawValue ?? item.tier.rawValue
         self.status = item.status.rawValue
         self.sortOrder = item.sortOrder
         self.addedAt = item.addedAt
     }
     
     public func toModel() -> WatchlistItem {
-        WatchlistItem(
+        let customSec: CryptoSector? = {
+            if let sec = CryptoSector(rawValue: tier), sec != .all {
+                return sec
+            }
+            return nil
+        }()
+        
+        return WatchlistItem(
             symbol: symbol,
             baseAsset: baseAsset,
             tier: CoinTier(rawValue: tier) ?? .unassigned,
             status: CoinStatus(rawValue: status) ?? .watching,
             sortOrder: sortOrder,
-            addedAt: addedAt
+            addedAt: addedAt,
+            customSector: customSec
         )
     }
 }

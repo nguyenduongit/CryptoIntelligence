@@ -33,6 +33,17 @@ public struct WatchlistItem: Identifiable, Sendable, Codable, Equatable {
     public var priceChange24h: Double?
     public var volume24h: Double?
     
+    public var customSector: CryptoSector?
+    
+    public var sector: CryptoSector {
+        get {
+            customSector ?? CryptoSector.categorize(baseAsset: baseAsset)
+        }
+        set {
+            customSector = newValue
+        }
+    }
+    
     public init(
         symbol: String,
         baseAsset: String,
@@ -42,7 +53,8 @@ public struct WatchlistItem: Identifiable, Sendable, Codable, Equatable {
         addedAt: Date = Date(),
         lastPrice: Double? = nil,
         priceChange24h: Double? = nil,
-        volume24h: Double? = nil
+        volume24h: Double? = nil,
+        customSector: CryptoSector? = nil
     ) {
         self.symbol = symbol.uppercased()
         self.baseAsset = baseAsset.uppercased()
@@ -53,5 +65,6 @@ public struct WatchlistItem: Identifiable, Sendable, Codable, Equatable {
         self.lastPrice = lastPrice
         self.priceChange24h = priceChange24h
         self.volume24h = volume24h
+        self.customSector = customSector
     }
 }

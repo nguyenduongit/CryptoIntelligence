@@ -2,7 +2,7 @@ import SwiftUI
 import Observation
 
 public enum MainTab: String, CaseIterable, Identifiable, Sendable {
-    case coin = "Nghiên cứu"
+    case coin = "Phân Tích Coin"
     case globalMacro = "Kinh tế vĩ mô"
     case market = "Thị Trường"
     case screener = "Radar"

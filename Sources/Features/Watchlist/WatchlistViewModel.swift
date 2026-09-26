@@ -2,12 +2,36 @@ import SwiftUI
 import Observation
 import GRDB
 
+public enum WatchlistSortMode: String, CaseIterable, Identifiable {
+    case manual = "Thủ công"
+    case changeDesc = "Biến động 24h ↓"
+    case changeAsc = "Biến động 24h ↑"
+    case volumeDesc = "Khối lượng ↓"
+    case nameAsc = "Tên A-Z"
+    
+    public var id: String { rawValue }
+    
+    public var iconName: String {
+        switch self {
+        case .manual: return "arrow.up.and.down.text.horizontal"
+        case .changeDesc: return "arrow.down.right"
+        case .changeAsc: return "arrow.up.right"
+        case .volumeDesc: return "chart.bar.fill"
+        case .nameAsc: return "textformat.abc"
+        }
+    }
+}
+
 @Observable
 public final class WatchlistViewModel: @unchecked Sendable {
     public var items: [WatchlistItem] = []
+    public var selectedSectorFilter: CryptoSector? = nil
+    public var sortMode: WatchlistSortMode = .manual
+    public var searchText: String = ""
+    
+    // Kept for backward compatibility
     public var selectedTierFilter: CoinTier? = nil
     public var selectedStatusFilter: CoinStatus? = nil
-    public var searchText: String = ""
     
     public var availableSymbols: [SymbolInfo] = []
     public var searchResults: [SymbolInfo] = []
@@ -27,16 +51,30 @@ public final class WatchlistViewModel: @unchecked Sendable {
     }
     
     public var filteredItems: [WatchlistItem] {
-        items.filter { item in
+        let list = items.filter { item in
             let matchesSearch = searchText.isEmpty ||
                 item.symbol.localizedCaseInsensitiveContains(searchText) ||
                 item.baseAsset.localizedCaseInsensitiveContains(searchText)
             
-            let matchesTier = selectedTierFilter == nil || item.tier == selectedTierFilter
-            let matchesStatus = selectedStatusFilter == nil || item.status == selectedStatusFilter
+            let matchesSector = (selectedSectorFilter == nil || selectedSectorFilter == .all)
+                ? true
+                : (item.sector == selectedSectorFilter)
             
-            return matchesSearch && matchesTier && matchesStatus
-        }.sorted { $0.sortOrder < $1.sortOrder }
+            return matchesSearch && matchesSector
+        }
+        
+        switch sortMode {
+        case .manual:
+            return list.sorted { $0.sortOrder < $1.sortOrder }
+        case .changeDesc:
+            return list.sorted { ($0.priceChange24h ?? -999) > ($1.priceChange24h ?? -999) }
+        case .changeAsc:
+            return list.sorted { ($0.priceChange24h ?? 999) < ($1.priceChange24h ?? 999) }
+        case .volumeDesc:
+            return list.sorted { ($0.volume24h ?? 0) > ($1.volume24h ?? 0) }
+        case .nameAsc:
+            return list.sorted { $0.baseAsset < $1.baseAsset }
+        }
     }
     
     public func loadWatchlist() {
@@ -123,7 +161,7 @@ public final class WatchlistViewModel: @unchecked Sendable {
         }
     }
     
-    public func addItem(symbol: String, baseAsset: String, tier: CoinTier = .unassigned, status: CoinStatus = .watching) {
+    public func addItem(symbol: String, baseAsset: String, tier: CoinTier = .unassigned, status: CoinStatus = .watching, sector: CryptoSector? = nil) {
         let cleanSymbol = symbol.uppercased()
         guard !items.contains(where: { $0.symbol == cleanSymbol }) else { return }
         
@@ -134,7 +172,8 @@ public final class WatchlistViewModel: @unchecked Sendable {
             tier: tier,
             status: status,
             sortOrder: nextOrder,
-            addedAt: Date()
+            addedAt: Date(),
+            customSector: sector
         )
         
         items.append(newItem)
@@ -172,8 +211,7 @@ public final class WatchlistViewModel: @unchecked Sendable {
         }
     }
     
-    public func moveItems(from source: IndexSet, to destination: Int) {
-        items.move(fromOffsets: source, toOffset: destination)
+    public func saveItemsSortOrder() {
         for i in 0..<items.count {
             items[i].sortOrder = i
         }
@@ -187,6 +225,55 @@ public final class WatchlistViewModel: @unchecked Sendable {
             }
         } catch {
             print("Failed to save reordered watchlist: \(error)")
+        }
+    }
+    
+    public func moveItems(from source: IndexSet, to destination: Int) {
+        items.move(fromOffsets: source, toOffset: destination)
+        sortMode = .manual
+        saveItemsSortOrder()
+    }
+    
+    public func moveItem(symbol: String, toTop: Bool = false, toBottom: Bool = false, offset: Int = 0) {
+        guard let currentIndex = items.firstIndex(where: { $0.symbol == symbol }) else { return }
+        let targetIndex: Int
+        if toTop {
+            targetIndex = 0
+        } else if toBottom {
+            targetIndex = items.count - 1
+        } else {
+            targetIndex = max(0, min(items.count - 1, currentIndex + offset))
+        }
+        guard targetIndex != currentIndex else { return }
+        
+        let item = items.remove(at: currentIndex)
+        items.insert(item, at: targetIndex)
+        sortMode = .manual
+        saveItemsSortOrder()
+    }
+    
+    public func moveItemToPosition(draggedSymbol: String, targetSymbol: String) {
+        guard draggedSymbol != targetSymbol,
+              let from = items.firstIndex(where: { $0.symbol == draggedSymbol }),
+              let to = items.firstIndex(where: { $0.symbol == targetSymbol }) else { return }
+        
+        let item = items.remove(at: from)
+        items.insert(item, at: to)
+        sortMode = .manual
+        saveItemsSortOrder()
+    }
+    
+    public func updateItemSector(symbol: String, sector: CryptoSector) {
+        guard let idx = items.firstIndex(where: { $0.symbol == symbol }) else { return }
+        items[idx].customSector = sector
+        
+        do {
+            try dbManager.dbQueue.write { db in
+                let rec = WatchlistRecord(item: self.items[idx])
+                try rec.update(db)
+            }
+        } catch {
+            print("Failed to update sector: \(error)")
         }
     }
     
