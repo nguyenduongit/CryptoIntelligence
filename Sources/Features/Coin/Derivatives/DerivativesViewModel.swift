@@ -15,16 +15,23 @@ public enum DerivativesSectionFilter: String, CaseIterable, Identifiable {
 public final class DerivativesViewModel: @unchecked Sendable {
     public var symbol: String
     public var profile: DerivativesProfile? = nil
+    public var deribitOptionsProfile: DeribitOptionsSurfaceProfile? = nil
     public var selectedSection: DerivativesSectionFilter = .all
     public var isLoading: Bool = false
     public var errorMessage: String? = nil
     
     private let provider: DerivativesDataProvider
+    private let deribitProvider: DeribitOptionsProvider
     private var loadTask: Task<Void, Never>?
     
-    public init(symbol: String, provider: DerivativesDataProvider = .shared) {
+    public init(
+        symbol: String,
+        provider: DerivativesDataProvider = .shared,
+        deribitProvider: DeribitOptionsProvider = .shared
+    ) {
         self.symbol = symbol
         self.provider = provider
+        self.deribitProvider = deribitProvider
     }
     
     public func setSymbol(_ newSymbol: String) {
@@ -40,9 +47,13 @@ public final class DerivativesViewModel: @unchecked Sendable {
             self.errorMessage = nil
             
             do {
-                let fetched = try await provider.fetchDerivativesProfile(for: self.symbol)
+                async let derivFetch = self.provider.fetchDerivativesProfile(for: self.symbol)
+                async let deribitFetch = self.deribitProvider.fetchOptionsProfile(for: self.symbol)
+                
+                let (fetched, deribitData) = try await (derivFetch, deribitFetch)
                 guard !Task.isCancelled else { return }
                 self.profile = fetched
+                self.deribitOptionsProfile = deribitData
                 self.isLoading = false
             } catch {
                 guard !Task.isCancelled else { return }

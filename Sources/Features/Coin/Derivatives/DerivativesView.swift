@@ -7,6 +7,7 @@ public struct DerivativesView: View {
     
     private let sections: [SubtabSectionItem] = [
         SubtabSectionItem(id: "futures", title: "Tổng Quan Futures & Funding", iconName: "chart.line.uptrend.xyaxis"),
+        SubtabSectionItem(id: "optionsVol", title: "Quyền Chọn & Mặt Cong Biến Động (Deribit)", iconName: "waveform.path.ecg"),
         SubtabSectionItem(id: "heatmap", title: "Bản Đồ Cụm Thanh Lý", iconName: "flame.fill"),
         SubtabSectionItem(id: "huntRadar", title: "Radar Săn Thanh Lý", iconName: "bolt.shield.fill"),
         SubtabSectionItem(id: "orderbook", title: "Sổ Lệnh & Tường Mua/Bán", iconName: "square.stack.3d.down.right.fill")
@@ -41,6 +42,26 @@ public struct DerivativesView: View {
                         
                         // 2. Open Interest & Long/Short Sentiment
                         OpenInterestSentimentCardView(metrics: profile.openInterest)
+                        
+                        // 3. Deribit Options Surface & DVOL Summary if available
+                        if let deribit = viewModel.deribitOptionsProfile {
+                            DeribitVolatilityCardView(profile: deribit)
+                        }
+                        
+                    case "optionsVol":
+                        if let deribit = viewModel.deribitOptionsProfile {
+                            DeribitVolatilityCardView(profile: deribit)
+                        } else {
+                            VStack(spacing: 8) {
+                                ProgressView()
+                                Text("Đang tải dữ liệu Quyền chọn & DVOL từ Deribit...")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 200)
+                            .background(AppTheme.darkCard)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
                         
                     case "heatmap":
                         // 1. Full Liquidation Heatmap (2D Canvas Coinglass + 1D Clusters)
