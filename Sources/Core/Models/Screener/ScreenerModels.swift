@@ -5,7 +5,7 @@ import SwiftUI
 public enum SignalCategory: String, Sendable, Codable, CaseIterable, Identifiable {
     case trendBreakout = "Đột Phá Xu Hướng (Breakout)"
     case volatilitySqueeze = "Bùng Nổ Biến Động (BB Squeeze)"
-    case momentumRSI = "Xung Lượng & Phân Kỳ (RSI/MACD)"
+    case momentumRSI = "Xung Lượng & Momentum (24H)"
     case volumeSpike = "Khối Lượng Bùng Nổ (Volume Spike)"
     case onChainWhale = "Cá Voi & Smart Money Gom (Whale Inflow)"
     case derivativesSqueeze = "Ép Thanh Lý & Funding (Short Squeeze)"

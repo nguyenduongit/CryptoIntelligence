@@ -166,6 +166,11 @@ public struct LTHSupplyDistributionCardView: View {
                 .background(AppTheme.darkHeaderBg.opacity(0.4))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
             }
+            
+            Text("* Cơ cấu nguồn cung LTH/STH là chỉ số ước tính theo mô hình phân bổ thanh khoản, không phải dữ liệu trích xuất trực tiếp từ UTXO node.")
+                .font(.system(size: 9))
+                .foregroundColor(.white.opacity(0.4))
+                .padding(.top, 2)
         }
         .padding(14)
         .background(AppTheme.darkCard)

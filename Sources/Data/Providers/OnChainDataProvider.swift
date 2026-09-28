@@ -116,7 +116,7 @@ public actor OnChainDataProvider {
             ]
         }
         
-        // --- 2. Live Exchange Flows ---
+        // --- 2. Live Exchange Flow Proxy (Taker Buy/Sell Volume) ---
         let buyUSD = liveWhaleSwaps.filter { $0.type == .buy }.reduce(0.0) { $0 + $1.amountUSD }
         let sellUSD = liveWhaleSwaps.filter { $0.type == .sell }.reduce(0.0) { $0 + $1.amountUSD }
         let totalSwapUSD = buyUSD + sellUSD
@@ -125,16 +125,22 @@ public actor OnChainDataProvider {
         if totalSwapUSD > 0 {
             buyRatio = buyUSD / totalSwapUSD
         } else {
-            buyRatio = (baseAsset == "BTC" || change24h >= 0) ? 0.54 : 0.46
+            buyRatio = change24h >= 0 ? 0.52 : 0.48
         }
         
-        let inflowUSD = vol24h * (1.0 - buyRatio)
-        let outflowUSD = vol24h * buyRatio
-        let netFlowUSD = (baseAsset == "BTC" && inflowUSD >= outflowUSD) ? -abs(inflowUSD - outflowUSD) : (inflowUSD - outflowUSD) // Negative = Outflow (Accumulation), Positive = Inflow (Selling)
+        // C4 FIX: Use USD volume (vol24h * price), NOT raw token quantity.
+        // Inflow = taker sell volume (tokens sold on exchange / to market)
+        // Outflow = taker buy volume (tokens bought / withdrawn)
+        // Net flow = Inflow - Outflow (positive = net selling/inflow, negative = net buying/outflow)
+        // Removed hardcoded BTC bias that artificially inverted sign.
+        let vol24hUSD = vol24h * currentPrice
+        let inflowUSD = vol24hUSD * (1.0 - buyRatio)
+        let outflowUSD = vol24hUSD * buyRatio
+        let netFlowUSD = inflowUSD - outflowUSD
         
-        let circSupply = fundData?.circulatingSupply ?? (vol24h / max(0.0001, currentPrice) * 12.0)
+        let circSupply = fundData?.circulatingSupply ?? (vol24h * 12.0)
         let exchangeReserve = circSupply * 0.115
-        let reserveChange7d = -1.0 * (netFlowUSD / max(1.0, vol24h)) * 3.5
+        let reserveChange7d = -1.0 * (netFlowUSD / max(1.0, vol24hUSD)) * 3.5
         
         let exchangeFlow = ExchangeFlowMetrics(
             netFlow24hUSD: netFlowUSD,
@@ -145,42 +151,54 @@ public actor OnChainDataProvider {
         )
         
         // --- 3. MVRV & Cycle Metrics ---
-        let realizedPrice = max(currentPrice * 0.35, currentPrice * (1.0 - (fundData?.mcFdvRatio ?? 0.65) * 0.42))
-        let mvrvZ = max(0.65, min(8.0, currentPrice / max(0.0001, realizedPrice)))
-        let nupl = max(0.05, min(0.90, 1.0 - (realizedPrice / currentPrice)))
-        let puell = max(0.6, min(2.8, (vol24h / max(1.0, (fundData?.marketCapUSD ?? (currentPrice * circSupply)))) * 18.0))
+        // C1 FIX: This is NOT a true MVRV Z-Score (would require actual on-chain realized cap data).
+        // It's an estimated Market-Value-to-Realized-Value proxy based on available market data.
+        // The formula produces a narrow range with current inputs — do NOT present as ground truth.
+        let mcFdv = fundData?.mcFdvRatio ?? 0.65
+        let realizedPrice = currentPrice * max(0.35, 1.0 - mcFdv * 0.42)
+        // Remove artificial clamp: let the proxy value through honestly so scoring reflects reality
+        let mvrvZ = currentPrice / max(0.0001, realizedPrice)
+        let nupl = max(0.0, min(1.0, 1.0 - (realizedPrice / currentPrice)))
+        let puell = max(0.4, min(3.5, (vol24hUSD / max(1.0, (fundData?.marketCapUSD ?? (currentPrice * circSupply)))) * 18.0))
         
+        // C1 FIX: Synchronize cyclePhase thresholds with Confluence evaluateOnChainPillar
+        // Both now use: < 1.0 / < 2.0 / < 4.0 / >= 4.0
         let cyclePhase: String
         let cycleRisk: Double
-        if mvrvZ < 1.2 {
-            cyclePhase = "Vùng Định Giá Hấp Dẫn (Under-valued Deep Accumulation)"
-            cycleRisk = 0.25
-        } else if mvrvZ < 2.2 {
-            cyclePhase = "Giữa Chu Kỳ Tăng Trưởng (Mid-Bull Fair Value Zone)"
-            cycleRisk = 0.42
-        } else if mvrvZ < 3.8 {
-            cyclePhase = "Giai Đoạn Tăng Tốc Hưng Phấn (High Euphoria Expansion)"
+        if mvrvZ < 1.0 {
+            cyclePhase = "Vùng Định Giá Hấp Dẫn (Estimated Under-valued Zone)"
+            cycleRisk = 0.20
+        } else if mvrvZ < 2.0 {
+            cyclePhase = "Giữa Chu Kỳ Tăng Trưởng (Estimated Fair Value Zone)"
+            cycleRisk = 0.40
+        } else if mvrvZ < 4.0 {
+            cyclePhase = "Giai Đoạn Tăng Tốc (Estimated High Expansion Zone)"
             cycleRisk = 0.65
         } else {
-            cyclePhase = "Vùng Quá Nhiệt Rủi Ro Cao (Macro Overbought Phase)"
+            cyclePhase = "Vùng Quá Nhiệt Rủi Ro Cao (Estimated Overbought Zone)"
             cycleRisk = 0.88
         }
         
         let closePrices = dailyCandles.map { $0.close }
         let pi111: Double
         let pi350: Double
+        // C2 FIX: Label Pi Cycle SMAs honestly with actual period used
+        let actualPi111Period: Int
+        let actualPi350Period: Int
         if closePrices.count >= 20 {
-            let w111 = min(111, closePrices.count)
-            let sma111List = MovingAverage.calculateSMA(values: closePrices, period: w111)
+            actualPi111Period = min(111, closePrices.count)
+            let sma111List = MovingAverage.calculateSMA(values: closePrices, period: actualPi111Period)
             pi111 = sma111List.compactMap { $0 }.last ?? (currentPrice * 0.92)
             
-            let w350 = min(closePrices.count, 120)
-            let sma350List = MovingAverage.calculateSMA(values: closePrices, period: w350)
+            actualPi350Period = min(350, closePrices.count)
+            let sma350List = MovingAverage.calculateSMA(values: closePrices, period: actualPi350Period)
             let baseSMA350 = sma350List.compactMap { $0 }.last ?? (currentPrice * 0.77)
             pi350 = baseSMA350 * 2.0
         } else {
             pi111 = currentPrice * 0.92
             pi350 = currentPrice * 1.54
+            actualPi111Period = 0
+            actualPi350Period = 0
         }
         
         let cycleMetrics = MVRVCycleMetrics(
@@ -270,8 +288,7 @@ public actor OnChainDataProvider {
             nvtRatio: nvt
         )
         
-        // --- 6. Holder Concentration ---
-        let mcFdv = fundData?.mcFdvRatio ?? 0.65
+        // --- 6. Holder Concentration (Proxy Estimates) ---
         let top10 = min(60.0, max(5.0, (1.0 - mcFdv) * 50.0 + 8.0))
         let top50 = min(80.0, top10 + 16.0)
         let top100 = min(90.0, top50 + 10.0)

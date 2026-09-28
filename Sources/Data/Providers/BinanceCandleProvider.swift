@@ -123,6 +123,10 @@ public actor BinanceCandleProvider: CandleProvider {
                 let quoteVolStr = (item.count > 7 ? item[7] as? String : "0") ?? "0"
                 let trades = (item.count > 8 ? (item[8] as? Int ?? (item[8] as? NSNumber)?.intValue) : 0) ?? 0
                 
+                // A2 FIX: Only mark closed if candle closeTime has actually passed nowMs
+                let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+                let isClosed = closeTime > 0 ? (closeTime <= nowMs) : true
+                
                 batchCandles.append(Candle(
                     openTime: openTime,
                     open: open,
@@ -133,7 +137,7 @@ public actor BinanceCandleProvider: CandleProvider {
                     closeTime: closeTime,
                     quoteVolume: Double(quoteVolStr) ?? 0,
                     trades: trades,
-                    isClosed: true
+                    isClosed: isClosed
                 ))
             }
             

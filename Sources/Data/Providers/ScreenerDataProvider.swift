@@ -4,6 +4,7 @@ public actor ScreenerDataProvider {
     public static let shared = ScreenerDataProvider()
     
     private let candleProvider: BinanceCandleProvider
+    private var marketBreadthRatio: Double = 0.50
     
     public init(candleProvider: BinanceCandleProvider = .shared) {
         self.candleProvider = candleProvider
@@ -22,13 +23,27 @@ public actor ScreenerDataProvider {
         // Filter out pairs with low volume (< $5M USDT) for signal quality
         let liquidTickers = tickers.filter { $0.quoteVolume >= 5_000_000.0 }
         
-        // 1. Top Gainers -> Trend Breakout & RSI Momentum Signals
+        // D3 FIX: Track actual market breadth (ratio of green to total liquid tickers)
+        let greenCount = liquidTickers.filter { $0.priceChangePercent > 0 }.count
+        self.marketBreadthRatio = liquidTickers.isEmpty ? 0.50 : (Double(greenCount) / Double(liquidTickers.count))
+        
+        // 1. Top Gainers -> Trend Breakout & Momentum Signals
         let topGainers = liquidTickers.sorted(by: { $0.priceChangePercent > $1.priceChangePercent }).prefix(4)
-        for (idx, t) in topGainers.enumerated() {
+        for (_, t) in topGainers.enumerated() {
             let base = t.symbol.replacingOccurrences(of: "USDT", with: "")
-            let isStrong = t.priceChangePercent >= 8.0
-            let dir: SignalDirection = isStrong ? .strongBullish : .bullish
-            let score = min(98, max(75, 80 + Int(t.priceChangePercent)))
+            // D2 FIX: Verify actual price change sign before labeling bullish
+            let dir: SignalDirection
+            if t.priceChangePercent >= 8.0 {
+                dir = .strongBullish
+            } else if t.priceChangePercent >= 0.0 {
+                dir = .bullish
+            } else if t.priceChangePercent <= -8.0 {
+                dir = .strongBearish
+            } else {
+                dir = .bearish
+            }
+            
+            let score = min(98, max(75, 80 + Int(abs(t.priceChangePercent))))
             let triggerP = t.price * (1.0 - (t.priceChangePercent / 100.0) * 0.4)
             
             // True technical condition: Breakout if price is within 1.5% of 24h high, else Momentum
@@ -40,10 +55,11 @@ public actor ScreenerDataProvider {
                 title = "Breakout Cản Đỉnh 24h (+ \(String(format: "%.1f%%", t.priceChangePercent)))"
                 reason = "Giá áp sát đỉnh cao nhất 24h (\(Formatters.formatPrice(t.highPrice))) với xung lực tăng mạnh và khối lượng mua áp đảo."
             } else {
-                title = "Xung Lực Momentum Tăng Tốc (+ \(String(format: "%.1f%%", t.priceChangePercent)))"
+                title = "Xung Lực Momentum 24h (+ \(String(format: "%.1f%%", t.priceChangePercent)))"
                 reason = "Đà tăng giá duy trì ổn định với \(t.tradesCount) lượt khớp lệnh, dòng tiền tiếp tục gia tăng vị thế gom hàng."
             }
             
+            // D4 FIX: Use real detection time (now) and honest timeframe ("24H")
             signals.append(
                 MarketSignalItem(
                     symbol: t.symbol,
@@ -51,14 +67,14 @@ public actor ScreenerDataProvider {
                     category: cat,
                     direction: dir,
                     strengthScore: score,
-                    timeframe: "4H",
+                    timeframe: "24H",
                     triggerPriceUSD: triggerP,
                     currentPriceUSD: t.price,
                     priceChange24h: t.priceChangePercent,
                     volume24hUSD: t.quoteVolume,
                     title: title,
                     reason: reason,
-                    detectedAt: now.addingTimeInterval(-Double(idx * 600 + 300))
+                    detectedAt: now
                 )
             )
         }
@@ -68,7 +84,19 @@ public actor ScreenerDataProvider {
         for (idx, t) in topVolume.enumerated() {
             if signals.contains(where: { $0.symbol == t.symbol }) { continue }
             let base = t.symbol.replacingOccurrences(of: "USDT", with: "")
-            let dir: SignalDirection = t.priceChangePercent >= 0 ? .strongBullish : .bullish
+            
+            // D1 FIX: Check priceChangePercent direction correctly
+            let dir: SignalDirection
+            if t.priceChangePercent >= 2.0 {
+                dir = .strongBullish
+            } else if t.priceChangePercent >= 0.0 {
+                dir = .bullish
+            } else if t.priceChangePercent <= -2.0 {
+                dir = .strongBearish
+            } else {
+                dir = .bearish
+            }
+            
             let score = min(95, max(82, 85 + idx * 2))
             let triggerP = t.price * (t.priceChangePercent >= 0 ? 0.96 : 1.04)
             
@@ -81,6 +109,7 @@ public actor ScreenerDataProvider {
                 "Quy mô lệnh khớp trung bình cao bất thường ($\(Formatters.formatPrice(avgTradeUSD))/giao dịch), dấu hiệu tổ chức gom lệnh trực tiếp." :
                 "Khối lượng giao dịch 24h thuộc top đầu thị trường với \(t.tradesCount) lượt giao dịch khớp liên tục."
             
+            // D4 FIX: Use real detection time (now) and honest timeframe ("24H")
             signals.append(
                 MarketSignalItem(
                     symbol: t.symbol,
@@ -88,25 +117,36 @@ public actor ScreenerDataProvider {
                     category: cat,
                     direction: dir,
                     strengthScore: score,
-                    timeframe: "1H",
+                    timeframe: "24H",
                     triggerPriceUSD: triggerP,
                     currentPriceUSD: t.price,
                     priceChange24h: t.priceChangePercent,
                     volume24hUSD: t.quoteVolume,
                     title: title,
                     reason: reason,
-                    detectedAt: now.addingTimeInterval(-Double((idx + 4) * 800))
+                    detectedAt: now
                 )
             )
         }
         
         // 3. Top Losers / Squeeze / Divergence Signals
         let topLosers = liquidTickers.sorted(by: { $0.priceChangePercent < $1.priceChangePercent }).prefix(4)
-        for (idx, t) in topLosers.enumerated() {
+        for (_, t) in topLosers.enumerated() {
             if signals.contains(where: { $0.symbol == t.symbol }) { continue }
             let base = t.symbol.replacingOccurrences(of: "USDT", with: "")
-            let isDeepDrop = t.priceChangePercent <= -8.0
-            let dir: SignalDirection = isDeepDrop ? .strongBearish : .bearish
+            
+            // D2 FIX: Verify actual price change sign
+            let dir: SignalDirection
+            if t.priceChangePercent <= -8.0 {
+                dir = .strongBearish
+            } else if t.priceChangePercent <= 0.0 {
+                dir = .bearish
+            } else if t.priceChangePercent >= 8.0 {
+                dir = .strongBullish
+            } else {
+                dir = .bullish
+            }
+            
             let score = min(95, max(75, 80 + Int(abs(t.priceChangePercent))))
             let triggerP = t.price * (1.0 + (abs(t.priceChangePercent) / 100.0) * 0.5)
             
@@ -118,6 +158,7 @@ public actor ScreenerDataProvider {
                 "Giá chạm sát đáy 24h (\(Formatters.formatPrice(t.lowPrice))), áp lực thanh lý và cắt lỗ lệnh mua ngắn hạn tăng vọt." :
                 "Phe bán chiếm ưu thế tuyệt đối khiến thị giá giảm sâu, áp lực xả hàng lan rộng trên thị trường."
             
+            // D4 FIX: Use real detection time (now) and honest timeframe ("24H")
             signals.append(
                 MarketSignalItem(
                     symbol: t.symbol,
@@ -125,14 +166,14 @@ public actor ScreenerDataProvider {
                     category: cat,
                     direction: dir,
                     strengthScore: score,
-                    timeframe: "4H",
+                    timeframe: "24H",
                     triggerPriceUSD: triggerP,
                     currentPriceUSD: t.price,
                     priceChange24h: t.priceChangePercent,
                     volume24hUSD: t.quoteVolume,
                     title: title,
                     reason: reason,
-                    detectedAt: now.addingTimeInterval(-Double((idx + 8) * 900))
+                    detectedAt: now
                 )
             )
         }
@@ -146,7 +187,8 @@ public actor ScreenerDataProvider {
         let neutral = signals.filter { $0.direction == .neutral }.count
         let total = signals.count
         
-        let sentimentRatio = total > 0 ? Double(bullish) / Double(total) : 0.70
+        // D3 FIX: Compute sentiment from actual liquid market breadth, not from fixed 8/12 signals
+        let sentimentRatio = self.marketBreadthRatio
         
         let squeezeCoins = signals.filter { $0.category == .volatilitySqueeze || $0.category == .derivativesSqueeze }.map { $0.baseAsset }
         let whaleCoins = signals.filter { $0.category == .onChainWhale || $0.category == .volumeSpike }.map { $0.baseAsset }

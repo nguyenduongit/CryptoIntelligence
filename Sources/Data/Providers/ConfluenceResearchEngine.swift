@@ -148,24 +148,48 @@ public actor ConfluenceResearchEngine {
             )
         }
         
-        let closes = candles.map { $0.close }
+        // Filter out the unclosed candle (last candle from Binance may still be forming)
+        let closedCandles = candles.filter { $0.isClosed }
+        let closes = (closedCandles.isEmpty ? candles : closedCandles).map { $0.close }
         let rsiValues = RSI.calculate(values: closes, period: 14)
         let lastRSI = rsiValues.last?.flatMap { $0 } ?? 50.0
         
         let ema20Values = MovingAverage.calculateEMA(values: closes, period: 20)
         let lastEMA20 = ema20Values.last?.flatMap { $0 } ?? currentPrice
         
-        let ema50Values = MovingAverage.calculateEMA(values: closes, period: 50)
+        // B2 fix: When < 50 candles, EMA50 produces all nil → fallback to currentPrice
+        // making trend comparison meaningless. Use shorter EMA as proxy and flag it.
+        let hasEnoughForEMA50 = closes.count >= 50
+        let ema50Period = hasEnoughForEMA50 ? 50 : closes.count
+        let ema50Values = MovingAverage.calculateEMA(values: closes, period: ema50Period)
         let lastEMA50 = ema50Values.last?.flatMap { $0 } ?? currentPrice
+        let ema50IsFallback = !hasEnoughForEMA50
         
-        let macdRes = MACD.calculate(values: closes)
-        let lastMacdHist = macdRes.histogram.last?.flatMap { $0 } ?? 0.0
+        // B2 fix: MACD needs at least 26+8+1=35 candles for a valid histogram.
+        // With fewer candles, histogram defaults to 0 which falsely triggers "áp lực cung".
+        let hasEnoughForMACD = closes.count >= 35
+        let lastMacdHist: Double?
+        if hasEnoughForMACD {
+            let macdRes = MACD.calculate(values: closes)
+            lastMacdHist = macdRes.histogram.last?.flatMap { $0 }
+        } else {
+            lastMacdHist = nil
+        }
         
         var score = 50
         var notes: [String] = []
         
         // 1. Trend Structure (Price vs EMA20 & EMA50)
-        if currentPrice > lastEMA20 && lastEMA20 > lastEMA50 {
+        if ema50IsFallback {
+            // B2 fix: Not enough candles for true EMA50. Only evaluate EMA20.
+            if currentPrice > lastEMA20 {
+                score += 12
+                notes.append("Giá nằm trên EMA20 ($\(Formatters.formatPrice(lastEMA20))). Chưa đủ 50 nến 4H để tính EMA50 chính xác.")
+            } else {
+                score -= 8
+                notes.append("Giá nằm dưới EMA20 ($\(Formatters.formatPrice(lastEMA20))). Chưa đủ 50 nến 4H để tính EMA50 chính xác.")
+            }
+        } else if currentPrice > lastEMA20 && lastEMA20 > lastEMA50 {
             score += 25
             notes.append("Giá nằm trên EMA20 ($\(Formatters.formatPrice(lastEMA20))) & EMA50 ($\(Formatters.formatPrice(lastEMA50))), cấu trúc sóng tăng 4H duy trì hoàn hảo.")
         } else if currentPrice < lastEMA20 && lastEMA20 < lastEMA50 {
@@ -176,28 +200,36 @@ public actor ConfluenceResearchEngine {
             notes.append("Giá đang tích lũy nén quanh đường trung bình EMA20 ($\(Formatters.formatPrice(lastEMA20))).")
         }
         
-        // 2. Momentum (RSI 14)
+        // 2. Momentum (RSI 14) — B1 fix: cover all RSI ranges without gaps
         if lastRSI >= 50 && lastRSI <= 68 {
             score += 15
             notes.append("RSI-14 đạt \(String(format: "%.1f", lastRSI)) ở vùng đà tăng ổn định (Healthy Bullish).")
+        } else if lastRSI > 68 && lastRSI <= 75 {
+            score += 8
+            notes.append("RSI-14 đạt \(String(format: "%.1f", lastRSI)) ở vùng momentum tích cực, chưa vào quá mua (Strong Momentum).")
         } else if lastRSI > 75 {
-            score += 5
-            notes.append("RSI-14 đạt \(String(format: "%.1f", lastRSI)) tiến vào vùng quá mua ngắn hạn (Overbought).")
+            score += 3
+            notes.append("RSI-14 đạt \(String(format: "%.1f", lastRSI)) tiến vào vùng quá mua ngắn hạn (Overbought), rủi ro điều chỉnh tăng.")
         } else if lastRSI < 30 {
-            score += 15
-            notes.append("RSI-14 đạt \(String(format: "%.1f", lastRSI)) ở vùng quá bán sâu (Oversold), tiềm năng bật nảy kỹ thuật cao.")
+            score += 8
+            notes.append("RSI-14 đạt \(String(format: "%.1f", lastRSI)) ở vùng quá bán sâu (Oversold), tiềm năng phản hồi kỹ thuật.")
         } else {
+            // RSI 30–49: weak momentum
             score -= 10
-            notes.append("RSI-14 đạt \(String(format: "%.1f", lastRSI)) nằm dưới mốc 50.")
+            notes.append("RSI-14 đạt \(String(format: "%.1f", lastRSI)) nằm dưới mốc 50, đà tăng yếu (Weak Momentum).")
         }
         
-        // 3. MACD Momentum
-        if lastMacdHist > 0 {
-            score += 10
-            notes.append("MACD Histogram dương (+\(String(format: "%.2f", lastMacdHist))) khẳng định xung lực tăng.")
+        // 3. MACD Momentum — B2 fix: skip when insufficient candles
+        if let macdHist = lastMacdHist {
+            if macdHist > 0 {
+                score += 10
+                notes.append("MACD Histogram dương (+\(String(format: "%.2f", macdHist))) khẳng định xung lực tăng.")
+            } else {
+                score -= 8
+                notes.append("MACD Histogram âm (\(String(format: "%.2f", macdHist))) thể hiện áp lực cung.")
+            }
         } else {
-            score -= 8
-            notes.append("MACD Histogram âm (\(String(format: "%.2f", lastMacdHist))) thể hiện áp lực cung.")
+            notes.append("Chưa đủ nến (cần ≥35 nến 4H) để tính MACD Histogram chính xác. Bỏ qua chỉ báo này.")
         }
         
         score = max(20, min(95, score))
@@ -241,18 +273,24 @@ public actor ConfluenceResearchEngine {
         var summary = p.onChainSummary
         
         if let cycle = p.cycleMetrics {
+            // C1 FIX: Synchronize with OnChainDataProvider cyclePhase thresholds
+            // Thresholds: < 1.0 (undervalued), < 2.0 (fair value), < 4.0 (expansion), >= 4.0 (overbought)
             if cycle.mvrvZScore < 1.0 {
                 score = 92
                 signal = .strongBullish
-                summary = "MVRV Z-Score (\(String(format: "%.2f", cycle.mvrvZScore))) ở vùng định giá siêu hấp dẫn; LTH mua gom mạnh mẽ."
-            } else if cycle.mvrvZScore < 2.5 {
-                score = 84
+                summary = "MVRV Proxy (\(String(format: "%.2f", cycle.mvrvZScore))) ở vùng định giá hấp dẫn (Under-valued)."
+            } else if cycle.mvrvZScore < 2.0 {
+                score = 78
                 signal = .bullish
-                summary = "MVRV Z-Score (\(String(format: "%.2f", cycle.mvrvZScore))) ở vùng giá trị hợp lý (Fair Value), dư địa tăng trưởng chu kỳ lớn."
-            } else if cycle.mvrvZScore > 5.0 {
-                score = 42
+                summary = "MVRV Proxy (\(String(format: "%.2f", cycle.mvrvZScore))) ở vùng giá trị hợp lý (Fair Value)."
+            } else if cycle.mvrvZScore < 4.0 {
+                score = 62
+                signal = .neutral
+                summary = "MVRV Proxy (\(String(format: "%.2f", cycle.mvrvZScore))) ở giai đoạn tăng tốc chu kỳ (Expansion)."
+            } else {
+                score = 38
                 signal = .bearish
-                summary = "MVRV Z-Score (\(String(format: "%.2f", cycle.mvrvZScore))) tiếp cận vùng quá nhiệt, cần cảnh giác chốt lời."
+                summary = "MVRV Proxy (\(String(format: "%.2f", cycle.mvrvZScore))) tiếp cận vùng quá nhiệt rủi ro cao (Overbought)."
             }
         }
         
@@ -277,22 +315,41 @@ public actor ConfluenceResearchEngine {
             )
         }
         
-        var score = 75
+        // B7 FIX: Realistic scoring without assuming default inflation or over-scoring low MC/FDV
+        var score = 65
         let ratio = p.supplyMetrics.mcFdvRatio
-        let inflation = p.supplyMetrics.annualInflationRate ?? 2.5
+        var notes: [String] = []
         
-        if ratio >= 0.85 && inflation <= 2.0 {
-            score = 90
-        } else if ratio >= 0.60 && inflation <= 6.0 {
-            score = 80
-        } else if ratio < 0.40 || inflation > 10.0 {
-            score = 55
+        if ratio >= 0.85 {
+            score += 18
+            notes.append("Tỷ lệ MC/FDV cao (\(String(format: "%.1f%%", ratio * 100))), rủi ro pha loãng thấp.")
+        } else if ratio >= 0.65 {
+            score += 8
+            notes.append("Tỷ lệ MC/FDV khá (\(String(format: "%.1f%%", ratio * 100))).")
+        } else if ratio < 0.45 {
+            score -= 15
+            notes.append("Tỷ lệ MC/FDV thấp (\(String(format: "%.1f%%", ratio * 100))), lượng token khóa lớn tạo áp lực xả dài hạn.")
+        }
+        
+        if let inflation = p.supplyMetrics.annualInflationRate {
+            if inflation <= 2.0 {
+                score += 10
+                notes.append("Lạm phát hàng năm thấp (\(String(format: "%.1f%%", inflation))).")
+            } else if inflation > 8.0 {
+                score -= 15
+                notes.append("Lạm phát hàng năm cao (\(String(format: "%.1f%%", inflation))).")
+            }
+        } else {
+            notes.append("Lạm phát hàng năm chưa có số liệu chính thức.")
         }
         
         // Deduct if large upcoming unlock in next 30 days
         if p.upcomingUnlocks.contains(where: { $0.riskLevel == .high || $0.riskLevel == .extreme }) {
-            score = max(35, score - 15)
+            score = max(30, score - 15)
+            notes.append("Có đợt mở khóa lớn trong 30 ngày tới.")
         }
+        
+        score = max(20, min(95, score))
         
         let signal: PillarSignal
         if score >= 80 { signal = .strongBullish }
@@ -300,7 +357,7 @@ public actor ConfluenceResearchEngine {
         else if score >= 50 { signal = .neutral }
         else { signal = .bearish }
         
-        let summary = "Tỷ lệ lưu thông/FDV đạt \(String(format: "%.1f%%", ratio * 100.0)), lạm phát hàng năm \(String(format: "%.1f%%", inflation))."
+        let summary = notes.joined(separator: " ")
         return (PillarScoreItem(pillar: .tokenomics, score: score, signal: signal, summary: summary), true)
     }
     
@@ -353,52 +410,58 @@ public actor ConfluenceResearchEngine {
         let bullMultiplier: Double
         let baseMultiplier: Double
         let bearMultiplier: Double
+        
+        if baseAsset == "BTC" {
+            bullMultiplier = 1.65   // e.g. $110k
+            baseMultiplier = 1.25   // e.g. $83k
+            bearMultiplier = 0.80   // e.g. $53k
+        } else if baseAsset == "ETH" {
+            bullMultiplier = 1.95
+            baseMultiplier = 1.35
+            bearMultiplier = 0.75
+        } else if baseAsset == "SOL" {
+            bullMultiplier = 2.20
+            baseMultiplier = 1.45
+            bearMultiplier = 0.68
+        } else if baseAsset == "BNB" {
+            bullMultiplier = 1.75
+            baseMultiplier = 1.28
+            bearMultiplier = 0.78
+        } else if baseAsset == "SUI" {
+            bullMultiplier = 2.50
+            baseMultiplier = 1.50
+            bearMultiplier = 0.60
+        } else {
+            bullMultiplier = 2.20
+            baseMultiplier = 1.40
+            bearMultiplier = 0.60
+        }
+        
+        // B3 FIX: Probabilities MUST reflect overallScore genuinely across all assets
         let bullProb: Int
         let baseProb: Int
         let bearProb: Int
         
-        if baseAsset == "BTC" {
-            bullMultiplier = 1.75   // e.g. $116k
-            baseMultiplier = 1.30   // e.g. $86k
-            bearMultiplier = 0.78   // e.g. $52k
-            bullProb = overallScore >= 75 ? 55 : 40
+        if overallScore >= 75 {
+            bullProb = min(65, 45 + (overallScore - 75))
             baseProb = 35
-            bearProb = 100 - bullProb - baseProb
-        } else if baseAsset == "ETH" {
-            bullMultiplier = 2.10
-            baseMultiplier = 1.45
-            bearMultiplier = 0.72
-            bullProb = 50
-            baseProb = 35
-            bearProb = 15
-        } else if baseAsset == "SOL" {
-            bullMultiplier = 2.40
-            baseMultiplier = 1.60
-            bearMultiplier = 0.65
-            bullProb = 55
-            baseProb = 30
-            bearProb = 15
-        } else if baseAsset == "BNB" {
-            bullMultiplier = 1.90
-            baseMultiplier = 1.35
-            bearMultiplier = 0.75
-            bullProb = 50
-            baseProb = 35
-            bearProb = 15
-        } else if baseAsset == "SUI" {
-            bullMultiplier = 3.20
-            baseMultiplier = 1.80
-            bearMultiplier = 0.50
-            bullProb = 50
-            baseProb = 30
-            bearProb = 20
-        } else {
-            bullMultiplier = 2.50
-            baseMultiplier = 1.45
-            bearMultiplier = 0.55
+            bearProb = max(10, 100 - bullProb - baseProb)
+        } else if overallScore >= 60 {
             bullProb = 45
             baseProb = 35
             bearProb = 20
+        } else if overallScore >= 45 {
+            bullProb = 30
+            baseProb = 40
+            bearProb = 30
+        } else if overallScore >= 30 {
+            bullProb = 20
+            baseProb = 30
+            bearProb = 50
+        } else {
+            bullProb = 10
+            baseProb = 25
+            bearProb = 65
         }
         
         let bullTarget = currentPrice * bullMultiplier
@@ -447,34 +510,52 @@ public actor ConfluenceResearchEngine {
     }
     
     private func buildTradePlan(baseAsset: String, currentPrice: Double, overallScore: Int) -> TradeExecutionPlan {
-        let dcaMin = currentPrice * 0.90
-        let dcaMax = currentPrice * 0.98
-        let stopLoss = currentPrice * 0.82
-        let tp1 = currentPrice * 1.35
-        let tp2 = currentPrice * 1.85
+        // B4 FIX: Dynamic SL, TP and Allocation based on overallScore and asset class
+        let isLargeCap = baseAsset == "BTC" || baseAsset == "ETH"
+        
+        let dcaMinDrop = overallScore >= 75 ? (isLargeCap ? 0.04 : 0.08) : (isLargeCap ? 0.08 : 0.14)
+        let dcaMaxDrop = overallScore >= 75 ? (isLargeCap ? 0.015 : 0.03) : (isLargeCap ? 0.03 : 0.06)
+        let slDrop = overallScore >= 75 ? (isLargeCap ? 0.08 : 0.12) : (isLargeCap ? 0.12 : 0.18)
+        let tp1Gain = overallScore >= 75 ? (isLargeCap ? 0.22 : 0.35) : (isLargeCap ? 0.15 : 0.25)
+        let tp2Gain = overallScore >= 75 ? (isLargeCap ? 0.45 : 0.75) : (isLargeCap ? 0.30 : 0.50)
+        
+        let dcaMin = currentPrice * (1.0 - dcaMinDrop)
+        let dcaMax = currentPrice * (1.0 - dcaMaxDrop)
+        let stopLoss = currentPrice * (1.0 - slDrop)
+        let tp1 = currentPrice * (1.0 + tp1Gain)
+        let tp2 = currentPrice * (1.0 + tp2Gain)
         
         let potentialGain = tp1 - currentPrice
         let potentialLoss = currentPrice - stopLoss
-        let riskReward = potentialLoss > 0 ? (potentialGain / potentialLoss) : 3.0
+        let riskReward = potentialLoss > 0 ? (potentialGain / potentialLoss) : 2.5
         
-        let allocation: Double
+        let baseAllocation: Double
         if baseAsset == "BTC" {
-            allocation = 30.0
+            baseAllocation = 30.0
         } else if baseAsset == "ETH" || baseAsset == "SOL" || baseAsset == "BNB" {
-            allocation = 15.0
+            baseAllocation = 15.0
         } else {
-            allocation = 5.0
+            baseAllocation = 5.0
         }
+        
+        let scoreMultiplier: Double
+        if overallScore >= 80 { scoreMultiplier = 1.0 }
+        else if overallScore >= 65 { scoreMultiplier = 0.8 }
+        else if overallScore >= 50 { scoreMultiplier = 0.5 }
+        else if overallScore >= 35 { scoreMultiplier = 0.2 }
+        else { scoreMultiplier = 0.0 }
+        
+        let allocation = baseAllocation * scoreMultiplier
         
         return TradeExecutionPlan(
             optimalDCAMinUSD: dcaMin,
             optimalDCAMaxUSD: dcaMax,
-            recommendedAllocationPercent: allocation,
+            recommendedAllocationPercent: Double(round(allocation * 10) / 10),
             stopLossPriceUSD: stopLoss,
             takeProfit1USD: tp1,
             takeProfit2USD: tp2,
             riskRewardRatio: Double(round(riskReward * 10) / 10),
-            timeHorizonMonths: 12
+            timeHorizonMonths: isLargeCap ? 12 : 6
         )
     }
     
@@ -494,7 +575,7 @@ public actor ConfluenceResearchEngine {
                 "Biến động thanh lý từ tài sản tư pháp chính phủ Mỹ hoặc ủy thác Silk Road",
                 "Rủi ro địa chính trị bất ngờ làm đồng USD (DXY) mạnh lên ngắn hạn"
             ]
-            thesis = "Bitcoin đang nằm ở điểm hội tụ vàng giữa chu kỳ vĩ mô nới lỏng và dòng vốn tổ chức ETF. Tỷ lệ Risk/Reward vượt trội với điểm số hợp lưu \(score)/100, khuyến nghị tích lũy chủ động cho tầm nhìn dài hạn."
+            thesis = "Bitcoin đang nằm ở điểm hội tụ giữa chu kỳ vĩ mô nới lỏng và dòng vốn tổ chức ETF."
             
         case "ETH":
             catalysts = [
@@ -506,7 +587,7 @@ public actor ConfluenceResearchEngine {
                 "Cạnh tranh gay gắt về doanh thu phí giao dịch từ các Layer 1 tốc độ cao như Solana, Sui",
                 "Tốc độ giải ngân của quỹ Spot ETH ETF ban đầu chậm hơn so với Bitcoin"
             ]
-            thesis = "Ethereum giữ vững vị thế trung tâm thanh khoản DeFi và tài sản sinh lợi nhuận staking an toàn nhất. Khuyến nghị duy trì vị thế cốt lõi trong danh mục."
+            thesis = "Ethereum giữ vững vị thế trung tâm thanh khoản DeFi và tài sản sinh lợi nhuận staking an toàn nhất."
             
         case "SOL":
             catalysts = [
@@ -518,7 +599,7 @@ public actor ConfluenceResearchEngine {
                 "Áp lực mở khóa phân bổ token định kỳ từ tài sản phá sản của FTX Estate",
                 "Rủi ro tắc nghẽn mạng cục bộ trong các giai đoạn khối lượng giao dịch đột biến"
             ]
-            thesis = "Solana thể hiện hiệu suất vượt trội nhờ tốc độ tăng trưởng người dùng thực và thông lượng giao dịch. Tín hiệu hợp lưu đạt \(score)/100, khuyến nghị tích lũy theo từng nhịp điều chỉnh."
+            thesis = "Solana thể hiện hiệu suất vượt trội nhờ tốc độ tăng trưởng người dùng thực và thông lượng giao dịch."
             
         case "BNB":
             catalysts = [
@@ -530,7 +611,7 @@ public actor ConfluenceResearchEngine {
                 "Độ phụ thuộc lớn vào danh tiếng và khối lượng giao dịch của sàn Binance",
                 "Mức độ phi tập trung của nhóm validator thấp hơn so với Ethereum"
             ]
-            thesis = "BNB là tài sản blue-chip utility vững chắc với lực đốt cung đều đặn và dòng tiền thưởng từ Launchpool. Khuyến nghị phân bổ an toàn với điểm số \(score)/100."
+            thesis = "BNB là tài sản blue-chip utility vững chắc với lực đốt cung đều đặn và dòng tiền thưởng từ Launchpool."
             
         case "SUI":
             catalysts = [
@@ -542,7 +623,7 @@ public actor ConfluenceResearchEngine {
                 "Lịch mở khóa token định kỳ cho nhà đầu tư sớm trong các năm đầu Mainnet",
                 "Cạnh tranh trực tiếp từ các chuỗi monolithic thế hệ mới như Aptos, Monad"
             ]
-            thesis = "Sui đại diện cho công nghệ L1 thế hệ mới với trải nghiệm người dùng tối ưu. Điểm số hợp lưu đạt \(score)/100, khuyến nghị tích lũy từng phần có chọn lọc theo nhịp điều chỉnh."
+            thesis = "Sui đại diện cho công nghệ L1 thế hệ mới với trải nghiệm người dùng tối ưu."
             
         case "ARB":
             catalysts = [
@@ -554,7 +635,7 @@ public actor ConfluenceResearchEngine {
                 "Áp lực phân bổ token mở khóa hàng tháng cho team và nhà đầu tư",
                 "Sự vươn lên mạnh mẽ của Base (Coinbase L2) chia sẻ thị phần thanh khoản người dùng"
             ]
-            thesis = "Arbitrum là đầu tàu hạ tầng Layer 2 của Ethereum với hệ sinh thái DeFi sôi động nhất. Khuyến nghị theo dõi điểm vào giá hợp lý."
+            thesis = "Arbitrum là đầu tàu hạ tầng Layer 2 của Ethereum với hệ sinh thái DeFi sôi động nhất."
             
         case "OP":
             catalysts = [
@@ -566,7 +647,7 @@ public actor ConfluenceResearchEngine {
                 "Áp lực lạm phát mở khóa token và sự phân mảnh thanh khoản giữa các chain trong Superchain",
                 "Cạnh tranh trực tiếp với Arbitrum Orbit và zkSync Hyperchains"
             ]
-            thesis = "Optimism sở hữu mạng lưới liên minh Superchain hùng mạnh nhất Web3. Điểm số \(score)/100, phù hợp cho danh mục đầu tư đón sóng Layer 2."
+            thesis = "Optimism sở hữu mạng lưới liên minh Superchain hùng mạnh nhất Web3."
             
         case "LINK":
             catalysts = [
@@ -578,7 +659,7 @@ public actor ConfluenceResearchEngine {
                 "Tốc độ tăng trưởng doanh thu on-chain chưa bắt kịp định giá vốn hóa thị trường",
                 "Cạnh tranh từ các giải pháp oracle chi phí thấp như Pyth Network"
             ]
-            thesis = "Chainlink là tài sản cơ sở hạ tầng thiết yếu không thể thay thế trong toàn bộ hệ sinh thái Web3 và RWA. Khuyến nghị tích lũy dài hạn."
+            thesis = "Chainlink là tài sản cơ sở hạ tầng thiết yếu không thể thay thế trong toàn bộ hệ sinh thái Web3 và RWA."
             
         case "AVAX":
             catalysts = [
@@ -590,7 +671,7 @@ public actor ConfluenceResearchEngine {
                 "Lượng giao dịch trên chuỗi C-Chain chính có dấu hiệu chững lại so với các chuỗi mới",
                 "Chi phí duy trì validator và tính phân mảnh thanh khoản giữa các Subnet"
             ]
-            thesis = "Avalanche có nền tảng công nghệ đồng thuận xuất sắc và hướng đi rõ ràng vào khối doanh nghiệp/RWA. Khuyến nghị phân bổ tỷ trọng vừa phải."
+            thesis = "Avalanche có nền tảng công nghệ đồng thuận xuất sắc và hướng đi rõ ràng vào khối doanh nghiệp/RWA."
             
         case "DOGE":
             catalysts = [
@@ -617,6 +698,22 @@ public actor ConfluenceResearchEngine {
             thesis = "\(baseAsset) sở hữu tiềm năng tăng trưởng tốt nhưng cần quản trị rủi ro chặt chẽ với tỷ trọng phân bổ vốn hợp lý và tuân thủ kỷ luật cắt lỗ."
         }
         
-        return (catalysts, risks, thesis)
+        // B5 FIX: Thesis MUST directly reference recommendation and score honestly
+        let recAction: String
+        switch recommendation {
+        case .strongBuy:
+            recAction = "Điểm hợp lưu \(score)/100 khẳng định sức mạnh đa trụ cột. Khuyến nghị: MUA MẠNH / Tích lũy chủ động với tỷ trọng cao."
+        case .accumulate:
+            recAction = "Điểm hợp lưu \(score)/100 thể hiện cấu trúc tích cực. Khuyến nghị: TÍCH LŨY TỪNG PHẦN theo các nhịp điều chỉnh giá hợp lý."
+        case .watch:
+            recAction = "Điểm hợp lưu \(score)/100 ở ngưỡng trung tính. Khuyến nghị: QUAN SÁT, chưa vội mở vị thế mới và chờ tín hiệu xác nhận thêm."
+        case .takeProfit:
+            recAction = "Điểm hợp lưu \(score)/100 suy yếu so với chu kỳ. Khuyến nghị: CHỐT LỜI TỪNG PHẦN, hạ bớt tỷ trọng để bảo toàn lợi nhuận."
+        case .highRisk:
+            recAction = "Điểm hợp lưu \(score)/100 cảnh báo rủi ro cao. Khuyến nghị: ĐỨNG NGOÀI / PHÒNG HỘ, tuyệt đối tuân thủ kỷ luật dừng lỗ."
+        }
+        
+        let finalThesis = "\(thesis) \(recAction)"
+        return (catalysts, risks, finalThesis)
     }
 }

@@ -108,6 +108,11 @@ public struct ExchangeFlowCardView: View {
                 }
             }
             .padding(.top, 2)
+            
+            Text("* Dòng nạp/rút ước tính từ tỷ lệ khớp lệnh chủ động (Taker Buy/Sell) và khối lượng giao dịch 24h.")
+                .font(.system(size: 9))
+                .foregroundColor(.white.opacity(0.4))
+                .padding(.top, 2)
         }
         .padding(12)
         .background(AppTheme.darkCard)

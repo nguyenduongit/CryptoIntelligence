@@ -293,6 +293,51 @@ public struct GlobalMacroDataProvider: Sendable {
             )
         ]
         
+        // B6 FIX: Compute macroRiskScore dynamically from actual policy & macro indicators
+        var macroScore = 50 // baseline neutral
+        
+        // 1. Central bank stances: dovish policies add points (liquidity easing)
+        let dovishCount = centralBanks.filter { $0.stance == .dovish }.count
+        let hawkishCount = centralBanks.filter { $0.stance == .hawkish }.count
+        macroScore += (dovishCount * 5) - (hawkishCount * 8)
+        
+        // 2. Inflation trend: CPI dropping towards target adds points
+        if let cpi = inflationMetrics.first(where: { $0.id == "cpi_yoy" }) {
+            if cpi.latestValue < cpi.previousValue {
+                macroScore += 6 // Disinflation
+            } else if cpi.latestValue > cpi.previousValue {
+                macroScore -= 6
+            }
+        }
+        
+        // 3. Global M2 liquidity: growth adds points
+        if m2Points.count >= 2 {
+            let latestM2 = m2Points.last?.globalM2Trillions ?? 0
+            let prevM2 = m2Points[m2Points.count - 2].globalM2Trillions
+            if latestM2 > prevM2 {
+                macroScore += 8 // Expanding global liquidity
+            } else {
+                macroScore -= 6
+            }
+        }
+        
+        // 4. Cross Assets: DXY weakening
+        if let dxy = crossAssets.first(where: { $0.id == "dxy" }), dxy.change30d < 0 {
+            macroScore += 5 // Weaker USD = Bullish for crypto
+        }
+        
+        let calculatedMacroScore = max(25, min(90, macroScore))
+        let sentimentSummary: String
+        if calculatedMacroScore >= 75 {
+            sentimentSummary = "Môi trường Vĩ mô thuận lợi (Strong Risk-On): Chu kỳ nới lỏng tiền tệ mở rộng kết hợp cung tiền M2 gia tăng tạo bệ phóng thanh khoản cho tài sản số."
+        } else if calculatedMacroScore >= 60 {
+            sentimentSummary = "Môi trường Vĩ mô tích cực (Moderate Risk-On): Lãi suất hạ nhiệt dần, áp lực lạm phát được kiểm soát ở mức chấp nhận được."
+        } else if calculatedMacroScore >= 45 {
+            sentimentSummary = "Môi trường Vĩ mô trung tính (Neutral): Các tín hiệu nới lỏng đan xen với lo ngại tăng trưởng kinh tế."
+        } else {
+            sentimentSummary = "Môi trường Vĩ mô thách thức (Risk-Off): Thanh khoản thắt chặt hoặc bất ổn vĩ mô gây áp lực lên tài sản rủi ro."
+        }
+        
         return GlobalMacroOverviewData(
             centralBanks: centralBanks,
             inflationMetrics: inflationMetrics,
@@ -301,8 +346,8 @@ public struct GlobalMacroDataProvider: Sendable {
             m2History: m2Points,
             crossAssets: crossAssets,
             upcomingEvents: upcomingEvents,
-            macroRiskScore: 72,
-            macroSentimentSummary: "Môi trường Vĩ mô cực kỳ thuận lợi (Strong Risk-On): Chu kỳ nới lỏng lãi suất toàn cầu (Fed, ECB, PBOC) kết hợp cung tiền Global M2 phá đỉnh $108.4T đang tạo bệ phóng thanh khoản mạnh mẽ cho chu kỳ Bitcoin.",
+            macroRiskScore: calculatedMacroScore,
+            macroSentimentSummary: sentimentSummary,
             lastUpdated: Date()
         )
     }
