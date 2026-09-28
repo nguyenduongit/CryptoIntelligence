@@ -6,6 +6,7 @@ public final class LiquidityViewModel: @unchecked Sendable {
     public var symbol: String
     public var onchainProfile: OnChainProfile? = nil
     public var liquidityProfile: LiquidityOverviewProfile? = nil
+    public var aggregatedOrderbook: AggregatedOrderbook? = nil
     public var selectedSectionId: String = "cexDex"
     public var isLoading: Bool = false
     public var errorMessage: String? = nil
@@ -13,18 +14,21 @@ public final class LiquidityViewModel: @unchecked Sendable {
     private let onchainProvider: OnChainDataProvider
     private let dexProvider: DexScreenerProvider
     private let candleProvider: BinanceCandleProvider
+    private let orderbookProvider: MultiExchangeOrderbookProvider
     private var loadTask: Task<Void, Never>?
     
     public init(
         symbol: String,
         onchainProvider: OnChainDataProvider = .shared,
         dexProvider: DexScreenerProvider = .shared,
-        candleProvider: BinanceCandleProvider = .shared
+        candleProvider: BinanceCandleProvider = .shared,
+        orderbookProvider: MultiExchangeOrderbookProvider = .shared
     ) {
         self.symbol = symbol
         self.onchainProvider = onchainProvider
         self.dexProvider = dexProvider
         self.candleProvider = candleProvider
+        self.orderbookProvider = orderbookProvider
     }
     
     public func setSymbol(_ newSymbol: String) {
@@ -47,12 +51,14 @@ public final class LiquidityViewModel: @unchecked Sendable {
                 
                 async let onchainFetch = self.onchainProvider.fetchOnChainProfile(for: cleanSymbol)
                 async let liqFetch = self.dexProvider.fetchLiquidityOverview(for: cleanSymbol, currentPrice: price, cexVolume24hUSD: vol24h)
+                async let orderbookFetch = self.orderbookProvider.fetchAggregatedOrderbook(for: cleanSymbol)
                 
-                let (onchainData, liqData) = try await (onchainFetch, liqFetch)
+                let (onchainData, liqData, orderbookData) = try await (onchainFetch, liqFetch, orderbookFetch)
                 
                 guard !Task.isCancelled else { return }
                 self.onchainProfile = onchainData
                 self.liquidityProfile = liqData
+                self.aggregatedOrderbook = orderbookData
                 self.isLoading = false
             } catch {
                 guard !Task.isCancelled else { return }

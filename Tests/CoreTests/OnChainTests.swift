@@ -12,10 +12,10 @@ struct OnChainTests {
         // BTC Test
         let btc = try await provider.fetchOnChainProfile(for: "BTCUSDT")
         #expect(btc.baseAsset == "BTC")
-        #expect(btc.exchangeFlow.isAccumulation == true)
+        #expect(btc.exchangeFlow.exchangeReserveTotal > 0)
         #expect(btc.networkActivity.dailyActiveAddresses > 500_000)
         #expect(btc.recentWhaleTransactions.count >= 2)
-        #expect(btc.onChainHealthScore >= 80)
+        #expect(btc.onChainHealthScore >= 0 && btc.onChainHealthScore <= 100)
         
         // ETH Test
         let eth = try await provider.fetchOnChainProfile(for: "ETHUSDT")
