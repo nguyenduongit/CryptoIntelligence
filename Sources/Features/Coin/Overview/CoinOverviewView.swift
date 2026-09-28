@@ -5,6 +5,7 @@ public struct CoinOverviewView: View {
     public let item: WatchlistItem?
     
     @State private var report: ConfluenceResearchReport? = nil
+    @State private var riskProfile: PortfolioRiskProfile? = nil
     @State private var isLoading: Bool = false
     @State private var errorMessage: String? = nil
     
@@ -87,6 +88,11 @@ public struct CoinOverviewView: View {
                     // 4. Trade Execution & DCA Plan
                     TradeExecutionPlanCardView(plan: r.tradePlan)
                     
+                    // 4.5. Whale Portfolio Risk & Crisis Stress-Testing
+                    if let risk = riskProfile {
+                        PortfolioRiskStressCardView(baseProfile: risk)
+                    }
+                    
                     // 5. Investment Thesis & Catalysts
                     InvestmentThesisCardView(thesis: r.thesisSummary, catalysts: r.keyCatalysts, risks: r.keyRisks)
                 } else if let err = errorMessage {
@@ -123,8 +129,12 @@ public struct CoinOverviewView: View {
         
         Task { @MainActor in
             do {
-                let fetched = try await ConfluenceResearchEngine.shared.generateResearchReport(for: symbol)
-                self.report = fetched
+                async let reportFetch = ConfluenceResearchEngine.shared.generateResearchReport(for: symbol)
+                async let riskFetch = PortfolioRiskEngine.shared.analyzePortfolioRisk(for: symbol)
+                
+                let (fetchedReport, fetchedRisk) = try await (reportFetch, riskFetch)
+                self.report = fetchedReport
+                self.riskProfile = fetchedRisk
                 self.isLoading = false
             } catch {
                 self.isLoading = false
