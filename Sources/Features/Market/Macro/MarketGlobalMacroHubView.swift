@@ -218,7 +218,7 @@ public struct MarketGlobalMacroHubView: View {
         case "XAU/USD": return Color.yellow
         case "US10Y": return AppTheme.orange
         case "S&P 500": return AppTheme.accentBlue
-        case "Nasdaq 100": return Color.purple
+        case "Nasdaq", "Nasdaq 100": return Color.purple
         default: return AppTheme.cyan
         }
     }

@@ -197,17 +197,17 @@ public struct GlobalMacroDataProvider: Sendable {
             ),
             CrossAssetTickerItem(
                 id: "ndx",
-                symbol: "Nasdaq 100",
-                name: "Chỉ số Cổ phiếu Công nghệ Nasdaq 100",
+                symbol: "Nasdaq",
+                name: "Chỉ số Tổng hợp Nasdaq Composite (IXIC)",
                 category: .equities,
-                currentPrice: 30366.20,
+                currentPrice: 26906.81,
                 priceUnit: "pts",
-                change24h: -0.79,
-                change30d: +6.10,
+                change24h: -0.60,
+                change30d: +5.80,
                 correlationWithBTC_30d: +0.64,
                 correlationWithBTC_90d: +0.66,
                 iconName: "cpu",
-                note: "Cổ phiếu công nghệ AI & bán dẫn duy trì dòng tiền tương quan cao với tài sản số."
+                note: "Chỉ số công nghệ toàn diện Nasdaq Composite bao gồm hơn 3,000 cổ phiếu niêm yết trên sàn Nasdaq."
             ),
             CrossAssetTickerItem(
                 id: "wti",
@@ -394,7 +394,7 @@ public struct GlobalMacroDataProvider: Sendable {
             "gold": "GC=F",
             "dxy": "DX-Y.NYB",
             "spx": "%5EGSPC",
-            "ndx": "%5ENDX",
+            "ndx": "%5EIXIC",
             "us10y": "%5ETNX"
         ]
         
