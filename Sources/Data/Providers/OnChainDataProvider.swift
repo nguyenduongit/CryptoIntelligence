@@ -150,19 +150,29 @@ public actor OnChainDataProvider {
             exchangeReserveChange7dPercent: reserveChange7d
         )
         
-        // --- 3. MVRV & Cycle Metrics ---
-        // C1 FIX: This is NOT a true MVRV Z-Score (would require actual on-chain realized cap data).
-        // It's an estimated Market-Value-to-Realized-Value proxy based on available market data.
-        // The formula produces a narrow range with current inputs — do NOT present as ground truth.
-        let mcFdv = fundData?.mcFdvRatio ?? 0.65
-        let realizedPrice = currentPrice * max(0.35, 1.0 - mcFdv * 0.42)
-        // Remove artificial clamp: let the proxy value through honestly so scoring reflects reality
+        // --- 3. MVRV & Cycle Metrics (Volume-Weighted Historical Cost Basis Proxy) ---
+        // Quantitative Realized Price is the aggregate cost-basis across active daily candles.
+        // When currentPrice < historical cost basis -> MVRV < 1.0 (Undervalued Zone)
+        // When currentPrice is 1.0x - 2.0x cost basis -> MVRV in [1.0, 2.0] (Fair Value Zone)
+        // When currentPrice is 2.0x - 4.0x cost basis -> MVRV in [2.0, 4.0] (Expansion Zone)
+        // When currentPrice > 4.0x cost basis -> MVRV >= 4.0 (Overbought Bubble Zone)
+        let totalCandleVol = dailyCandles.reduce(0.0) { $0 + $1.volume }
+        let totalCandleTPV = dailyCandles.reduce(0.0) { $0 + ($1.close * $1.volume) }
+        
+        let realizedPrice: Double
+        if totalCandleVol > 0 && dailyCandles.count >= 14 {
+            realizedPrice = totalCandleTPV / totalCandleVol
+        } else if !dailyCandles.isEmpty {
+            realizedPrice = dailyCandles.map(\.close).reduce(0.0, +) / Double(dailyCandles.count)
+        } else {
+            realizedPrice = currentPrice * 0.78
+        }
+        
         let mvrvZ = currentPrice / max(0.0001, realizedPrice)
-        let nupl = max(0.0, min(1.0, 1.0 - (realizedPrice / currentPrice)))
+        let nupl = max(-1.0, min(1.0, (currentPrice - realizedPrice) / max(0.0001, currentPrice)))
         let puell = max(0.4, min(3.5, (vol24hUSD / max(1.0, (fundData?.marketCapUSD ?? (currentPrice * circSupply)))) * 18.0))
         
-        // C1 FIX: Synchronize cyclePhase thresholds with Confluence evaluateOnChainPillar
-        // Both now use: < 1.0 / < 2.0 / < 4.0 / >= 4.0
+        // Cycle phase and risk evaluation
         let cyclePhase: String
         let cycleRisk: Double
         if mvrvZ < 1.0 {
@@ -289,6 +299,7 @@ public actor OnChainDataProvider {
         )
         
         // --- 6. Holder Concentration (Proxy Estimates) ---
+        let mcFdv = fundData?.mcFdvRatio ?? 0.65
         let top10 = min(60.0, max(5.0, (1.0 - mcFdv) * 50.0 + 8.0))
         let top50 = min(80.0, top10 + 16.0)
         let top100 = min(90.0, top50 + 10.0)
@@ -564,12 +575,33 @@ public actor OnChainDataProvider {
             ]
         }
         
-        // --- 9. On-Chain Health Score & Summary ---
+        // --- 9. On-Chain Health Score & Summary (Dynamic Quant Scoring) ---
         var healthScore = 50
-        if netFlowUSD < 0 { healthScore += 18 } // Outflow / Accumulation
-        if mvrvZ >= 1.0 && mvrvZ <= 2.8 { healthScore += 16 }
-        if change24h > 0 { healthScore += 10 }
-        healthScore = max(30, min(95, healthScore))
+        
+        // 1. Valuation metric (MVRV): Undervalued adds points, overheated cuts points
+        if mvrvZ < 1.0 {
+            healthScore += 20 // Deep value accumulation
+        } else if mvrvZ <= 2.2 {
+            healthScore += 12 // Healthy expansion
+        } else if mvrvZ > 3.5 {
+            healthScore -= 22 // Overbought risk
+        }
+        
+        // 2. Real Exchange flow: Outflow is accumulation (+15), Inflow is selling (-15)
+        if netFlowUSD < 0 {
+            healthScore += 15
+        } else if netFlowUSD > 0 {
+            healthScore -= 15
+        }
+        
+        // 3. Price momentum: positive 24h change adds health
+        if change24h > 1.5 {
+            healthScore += 8
+        } else if change24h < -2.0 {
+            healthScore -= 8
+        }
+        
+        healthScore = max(20, min(95, healthScore))
         
         let healthLabel: String
         if healthScore >= 80 {

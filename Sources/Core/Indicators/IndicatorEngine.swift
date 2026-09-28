@@ -22,7 +22,11 @@ public struct ComputedIndicators: Sendable, Equatable {
 }
 
 public struct IndicatorEngine {
-    public static func compute(candles: [Candle], config: IndicatorConfig) -> ComputedIndicators {
+    public static func compute(
+        candles: [Candle],
+        config: IndicatorConfig,
+        timeframe: Timeframe? = nil
+    ) -> ComputedIndicators {
         var computed = ComputedIndicators()
         guard !candles.isEmpty else { return computed }
         
@@ -57,7 +61,7 @@ public struct IndicatorEngine {
             )
         }
         if config.showVWAP {
-            computed.vwap = VWAP.calculate(candles: candles)
+            computed.vwap = VWAP.calculate(candles: candles, timeframe: timeframe)
         }
         if config.showRSI {
             computed.rsi = RSI.calculate(values: closePrices, period: config.rsiPeriod)

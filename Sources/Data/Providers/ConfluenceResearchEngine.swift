@@ -59,8 +59,16 @@ public actor ConfluenceResearchEngine {
         // 3. Fetch Tokenomics
         let tokenomicsProfile = try? await tokenomicsProvider.fetchTokenomics(for: cleanSymbol)
         
-        // 4. Fetch Global Macro
-        let macroData = macroProvider.fetchGlobalMacroData()
+        // 4. Fetch Global Macro with dynamic market trend momentum
+        let marketTrend30d: Double?
+        if candles.count >= 30, let firstClose = candles.first?.close, firstClose > 0, let lastClose = candles.last?.close {
+            marketTrend30d = ((lastClose - firstClose) / firstClose) * 100.0
+        } else if let firstClose = candles.first?.close, firstClose > 0, let lastClose = candles.last?.close, candles.count > 1 {
+            marketTrend30d = ((lastClose - firstClose) / firstClose) * 100.0
+        } else {
+            marketTrend30d = change24h
+        }
+        let macroData = macroProvider.fetchGlobalMacroData(marketTrend30d: marketTrend30d)
         
         // 5. Fetch Smart Money
         let smartMoneyProfile = try? await smartMoneyProvider.fetchSmartMoneyProfile(for: cleanSymbol)
@@ -268,36 +276,35 @@ public actor ConfluenceResearchEngine {
             )
         }
         
-        var score = 78
-        var signal: PillarSignal = .bullish
+        var score = p.onChainHealthScore
         var summary = p.onChainSummary
         
         if let cycle = p.cycleMetrics {
-            // C1 FIX: Synchronize with OnChainDataProvider cyclePhase thresholds
-            // Thresholds: < 1.0 (undervalued), < 2.0 (fair value), < 4.0 (expansion), >= 4.0 (overbought)
             if cycle.mvrvZScore < 1.0 {
-                score = 92
-                signal = .strongBullish
-                summary = "MVRV Proxy (\(String(format: "%.2f", cycle.mvrvZScore))) ở vùng định giá hấp dẫn (Under-valued)."
+                summary = "MVRV Cost-Basis (\(String(format: "%.2f", cycle.mvrvZScore))) ở vùng tích lũy giá trị sâu (Under-valued)."
             } else if cycle.mvrvZScore < 2.0 {
-                score = 78
-                signal = .bullish
-                summary = "MVRV Proxy (\(String(format: "%.2f", cycle.mvrvZScore))) ở vùng giá trị hợp lý (Fair Value)."
-            } else if cycle.mvrvZScore < 4.0 {
-                score = 62
-                signal = .neutral
-                summary = "MVRV Proxy (\(String(format: "%.2f", cycle.mvrvZScore))) ở giai đoạn tăng tốc chu kỳ (Expansion)."
+                summary = "MVRV Cost-Basis (\(String(format: "%.2f", cycle.mvrvZScore))) ở vùng giá trị hợp lý (Fair Value)."
+            } else if cycle.mvrvZScore < 3.5 {
+                summary = "MVRV Cost-Basis (\(String(format: "%.2f", cycle.mvrvZScore))) ở giai đoạn mở rộng chu kỳ (Expansion)."
             } else {
-                score = 38
-                signal = .bearish
-                summary = "MVRV Proxy (\(String(format: "%.2f", cycle.mvrvZScore))) tiếp cận vùng quá nhiệt rủi ro cao (Overbought)."
+                summary = "MVRV Cost-Basis (\(String(format: "%.2f", cycle.mvrvZScore))) tiếp cận vùng quá nhiệt rủi ro cao (Overbought)."
             }
         }
         
         if let etf = p.spotETFFlows, etf.totalNetFlow24hUSD > 50_000_000 {
             score = min(100, score + 6)
             summary += " Dòng tiền ròng US Spot ETF mua ròng mạnh (+\(Formatters.formatVolume(etf.totalNetFlow24hUSD)) USD)."
+        } else if let etf = p.spotETFFlows, etf.totalNetFlow24hUSD < -50_000_000 {
+            score = max(10, score - 8)
+            summary += " Áp lực rút vốn khỏi US Spot ETF (-\(Formatters.formatVolume(abs(etf.totalNetFlow24hUSD))) USD)."
         }
+        
+        let signal: PillarSignal
+        if score >= 80 { signal = .strongBullish }
+        else if score >= 65 { signal = .bullish }
+        else if score >= 45 { signal = .neutral }
+        else if score >= 30 { signal = .bearish }
+        else { signal = .strongBearish }
         
         return (PillarScoreItem(pillar: .onchainETF, score: score, signal: signal, summary: summary), true)
     }
@@ -362,14 +369,14 @@ public actor ConfluenceResearchEngine {
     }
     
     private func evaluateMacroPillar(macro: GlobalMacroOverviewData) -> PillarScoreItem {
-        let score = macro.macroRiskScore // e.g. 72
+        let score = macro.macroRiskScore
         let signal: PillarSignal
         if score >= 80 { signal = .strongBullish }
         else if score >= 65 { signal = .bullish }
         else if score >= 50 { signal = .neutral }
         else { signal = .bearish }
         
-        let summary = "Cung tiền M2 toàn cầu lập đỉnh lịch sử ($108.4T). Fed bước vào chu kỳ nới lỏng lãi suất hỗ trợ mạnh tài sản rủi ro."
+        let summary = macro.macroSentimentSummary
         return PillarScoreItem(pillar: .macro, score: score, signal: signal, summary: summary)
     }
     
@@ -407,70 +414,45 @@ public actor ConfluenceResearchEngine {
     }
     
     private func buildScenarios(baseAsset: String, currentPrice: Double, overallScore: Int) -> [ScenarioProjection] {
-        let bullMultiplier: Double
-        let baseMultiplier: Double
-        let bearMultiplier: Double
-        
-        if baseAsset == "BTC" {
-            bullMultiplier = 1.65   // e.g. $110k
-            baseMultiplier = 1.25   // e.g. $83k
-            bearMultiplier = 0.80   // e.g. $53k
-        } else if baseAsset == "ETH" {
-            bullMultiplier = 1.95
-            baseMultiplier = 1.35
-            bearMultiplier = 0.75
-        } else if baseAsset == "SOL" {
-            bullMultiplier = 2.20
-            baseMultiplier = 1.45
-            bearMultiplier = 0.68
-        } else if baseAsset == "BNB" {
-            bullMultiplier = 1.75
-            baseMultiplier = 1.28
-            bearMultiplier = 0.78
-        } else if baseAsset == "SUI" {
-            bullMultiplier = 2.50
-            baseMultiplier = 1.50
-            bearMultiplier = 0.60
-        } else {
-            bullMultiplier = 2.20
-            baseMultiplier = 1.40
-            bearMultiplier = 0.60
+        // Quantitative Asset Beta relative to market benchmark
+        let beta: Double
+        switch baseAsset.uppercased() {
+        case "BTC": beta = 1.00
+        case "ETH": beta = 1.25
+        case "SOL": beta = 1.50
+        case "BNB": beta = 1.15
+        case "SUI", "AVAX", "NEAR", "APT": beta = 1.70
+        default: beta = 1.60
         }
         
-        // B3 FIX: Probabilities MUST reflect overallScore genuinely across all assets
-        let bullProb: Int
-        let baseProb: Int
-        let bearProb: Int
+        // Directional score skew: [-1.0 ... +1.0] centered at neutral 50
+        let skew = Double(overallScore - 50) / 50.0
         
-        if overallScore >= 75 {
-            bullProb = min(65, 45 + (overallScore - 75))
-            baseProb = 35
-            bearProb = max(10, 100 - bullProb - baseProb)
-        } else if overallScore >= 60 {
-            bullProb = 45
-            baseProb = 35
-            bearProb = 20
-        } else if overallScore >= 45 {
-            bullProb = 30
-            baseProb = 40
-            bearProb = 30
-        } else if overallScore >= 30 {
-            bullProb = 20
-            baseProb = 30
-            bearProb = 50
-        } else {
-            bullProb = 10
-            baseProb = 25
-            bearProb = 65
-        }
+        // Base return calibrated to score skew and beta:
+        // Score 50 -> 0%
+        // Score 80 (BTC) -> +15%
+        // Score 45 (BTC) -> -2.5%
+        // Score 30 (BTC) -> -10%
+        let baseReturn = skew * 25.0 * beta
         
-        let bullTarget = currentPrice * bullMultiplier
-        let baseTarget = currentPrice * baseMultiplier
-        let bearTarget = currentPrice * bearMultiplier
+        // Bull and Bear returns scale from base return with beta-weighted volatility
+        let bullReturn = baseReturn + (32.0 * beta) * (0.7 + 0.3 * max(0.0, skew))
+        let bearReturn = baseReturn - (28.0 * beta) * (0.7 + 0.3 * max(0.0, -skew))
         
-        let bullReturn = (bullMultiplier - 1.0) * 100.0
-        let baseReturn = (baseMultiplier - 1.0) * 100.0
-        let bearReturn = (bearMultiplier - 1.0) * 100.0
+        // Dynamic probabilities continuously calibrated to overallScore:
+        // S = 50 -> Bull 40%, Bear 40%, Base 20%
+        // S = 80 -> Bull 58%, Bear 22%, Base 20%
+        // S = 45 -> Bull 37%, Bear 43%, Base 20% (Yielding realistic negative expected return)
+        // S = 30 -> Bull 28%, Bear 52%, Base 20%
+        let rawBullProb = Int(round(10.0 + 0.60 * Double(overallScore)))
+        let rawBearProb = Int(round(10.0 + 0.60 * Double(100 - overallScore)))
+        let bullProb = max(10, min(70, rawBullProb))
+        let bearProb = max(10, min(70, rawBearProb))
+        let baseProb = max(10, 100 - bullProb - bearProb)
+        
+        let bullTarget = max(0.0001, currentPrice * (1.0 + bullReturn / 100.0))
+        let baseTarget = max(0.0001, currentPrice * (1.0 + baseReturn / 100.0))
+        let bearTarget = max(0.0001, currentPrice * (1.0 + bearReturn / 100.0))
         
         return [
             ScenarioProjection(

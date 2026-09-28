@@ -5,7 +5,7 @@ public struct GlobalMacroDataProvider: Sendable {
     
     public init() {}
     
-    public func fetchGlobalMacroData() -> GlobalMacroOverviewData {
+    public func fetchGlobalMacroData(marketTrend30d: Double? = nil) -> GlobalMacroOverviewData {
         let centralBanks: [CentralBankPolicyItem] = [
             CentralBankPolicyItem(
                 id: "fed",
@@ -324,6 +324,19 @@ public struct GlobalMacroDataProvider: Sendable {
         // 4. Cross Assets: DXY weakening
         if let dxy = crossAssets.first(where: { $0.id == "dxy" }), dxy.change30d < 0 {
             macroScore += 5 // Weaker USD = Bullish for crypto
+        }
+        
+        // 5. Dynamic Market Liquidity & Risk Appetite Momentum
+        if let trend = marketTrend30d {
+            if trend > 20.0 {
+                macroScore += 12 // Risk-on surge
+            } else if trend > 5.0 {
+                macroScore += 6
+            } else if trend < -20.0 {
+                macroScore -= 18 // Severe risk-off liquidity flight
+            } else if trend < -5.0 {
+                macroScore -= 8
+            }
         }
         
         let calculatedMacroScore = max(25, min(90, macroScore))

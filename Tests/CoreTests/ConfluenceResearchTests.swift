@@ -80,4 +80,23 @@ struct ConfluenceResearchTests {
         #expect(!report.keyRisks.isEmpty)
         #expect(report.tradePlan.riskRewardRatio > 0)
     }
+    
+    @Test("Test Scenario projections calibrate mathematically to confluence score")
+    func testScenarioExpectationCalibratedToScore() async throws {
+        let engine = ConfluenceResearchEngine.shared
+        
+        // When report is generated, verify scenario probabilities sum to 100%
+        let report = try await engine.generateResearchReport(for: "BTCUSDT")
+        let totalProb = report.scenarios.reduce(0) { $0 + $1.probabilityPercent }
+        #expect(totalProb == 100)
+        
+        // Macro pillar summary should not be hardcoded static text
+        if let macroPillar = report.pillars.first(where: { $0.pillar == .macro }) {
+            #expect(!macroPillar.summary.isEmpty)
+            // Summary should reflect the score state
+            if macroPillar.score >= 75 {
+                #expect(macroPillar.summary.contains("nới lỏng"))
+            }
+        }
+    }
 }

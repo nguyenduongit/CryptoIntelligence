@@ -16,6 +16,24 @@ struct AdvancedIndicatorTests {
         #expect(abs(vwap[1]! - (3200.0 / 30.0)) <= 1e-9)
     }
     
+    @Test func testVWAPHighTimeframeAnchored() {
+        // Daily candles spanning across consecutive UTC days (openTime diff = 86_400_000 ms)
+        let day1 = Candle(openTime: 1700000000000, open: 100, high: 110, low: 90, close: 100, volume: 10) // TP = 100, TPV = 1000, Vol = 10
+        let day2 = Candle(openTime: 1700000000000 + 86_400_000, open: 100, high: 120, low: 100, close: 110, volume: 20) // TP = 110, TPV = 2200, Vol = 20
+        
+        // When timeframe is .d1, it must NOT reset to (110 * 20) / 20 = 110.0
+        // It must maintain anchored cumulative volume: (1000 + 2200) / (10 + 20) = 106.666667
+        let vwapDaily = VWAP.calculate(candles: [day1, day2], timeframe: .d1, sessionReset: true)
+        #expect(vwapDaily.count == 2)
+        #expect(abs(vwapDaily[0]! - 100.0) <= 1e-6)
+        #expect(abs(vwapDaily[1]! - (3200.0 / 30.0)) <= 1e-6)
+        #expect(abs(vwapDaily[1]! - 110.0) > 1.0) // Confirms it did NOT collapse to typicalPrice
+        
+        // Auto-detect high timeframe when timeframe is omitted but candles step >= 24h
+        let vwapAuto = VWAP.calculate(candles: [day1, day2], sessionReset: true)
+        #expect(abs(vwapAuto[1]! - (3200.0 / 30.0)) <= 1e-6)
+    }
+    
     @Test func testStochRSICalculation() {
         var prices = [Double]()
         for i in 0..<50 {

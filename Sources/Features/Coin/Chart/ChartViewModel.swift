@@ -340,7 +340,11 @@ public final class ChartViewModel: @unchecked Sendable {
     }
     
     public func recomputeIndicators() {
-        self.computedIndicators = IndicatorEngine.compute(candles: self.candles, config: self.indicatorConfig)
+        self.computedIndicators = IndicatorEngine.compute(
+            candles: self.candles,
+            config: self.indicatorConfig,
+            timeframe: self.timeframe
+        )
     }
     
     public func resetViewportToLatest() {
