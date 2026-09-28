@@ -75,6 +75,12 @@ public struct MarketGlobalMacroHubView: View {
             }
         }
         .background(AppTheme.darkBackground)
+        .task {
+            let live = await GlobalMacroDataProvider.shared.fetchGlobalMacroDataLive()
+            withAnimation {
+                macroData = live
+            }
+        }
     }
     
     // MARK: - Unified Level 2 Sub-Header Bar (Matches Sidebar Height)
@@ -96,8 +102,11 @@ public struct MarketGlobalMacroHubView: View {
                 DataSourceBadge(type: .liveBinance, text: "US & Global Feeds")
                 
                 Button(action: {
-                    withAnimation {
-                        macroData = GlobalMacroDataProvider.shared.fetchGlobalMacroData()
+                    Task {
+                        let live = await GlobalMacroDataProvider.shared.fetchGlobalMacroDataLive()
+                        withAnimation {
+                            macroData = live
+                        }
                     }
                 }) {
                     Image(systemName: "arrow.clockwise")

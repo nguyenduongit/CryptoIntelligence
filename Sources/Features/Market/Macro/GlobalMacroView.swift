@@ -41,6 +41,12 @@ public struct GlobalMacroView: View {
             .padding(14)
         }
         .background(AppTheme.darkBackground)
+        .task {
+            let live = await GlobalMacroDataProvider.shared.fetchGlobalMacroDataLive()
+            withAnimation {
+                macroData = live
+            }
+        }
     }
     
     // MARK: - 1. Top Macro Ticker Ribbon

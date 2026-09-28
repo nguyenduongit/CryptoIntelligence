@@ -68,7 +68,7 @@ public actor ConfluenceResearchEngine {
         } else {
             marketTrend30d = change24h
         }
-        let macroData = macroProvider.fetchGlobalMacroData(marketTrend30d: marketTrend30d)
+        let macroData = await macroProvider.fetchGlobalMacroDataLive(marketTrend30d: marketTrend30d)
         
         // 5. Fetch Smart Money
         let smartMoneyProfile = try? await smartMoneyProvider.fetchSmartMoneyProfile(for: cleanSymbol)

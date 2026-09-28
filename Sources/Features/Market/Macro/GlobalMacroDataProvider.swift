@@ -144,84 +144,84 @@ public struct GlobalMacroDataProvider: Sendable {
                 symbol: "DXY",
                 name: "Chỉ số Sức mạnh Đô la (US Dollar Index)",
                 category: .currencies,
-                currentPrice: 100.85,
+                currentPrice: 101.18,
                 priceUnit: "pts",
-                change24h: -0.42,
-                change30d: -2.35,
+                change24h: +0.21,
+                change30d: -1.85,
                 correlationWithBTC_30d: -0.72,
                 correlationWithBTC_90d: -0.68,
                 iconName: "dollarsign.circle.fill",
-                note: "DXY suy yếu sâu khi Fed hạ lãi suất, tạo lực đẩy mạnh cho giá Bitcoin và tài sản rủi ro."
+                note: "DXY giao dịch quanh mốc 101 điểm, tác động trực tiếp đến dòng thanh khoản toàn cầu."
             ),
             CrossAssetTickerItem(
                 id: "gold",
                 symbol: "XAU/USD",
                 name: "Giá Vàng Giao Ngay (Spot Gold)",
                 category: .commodities,
-                currentPrice: 2658.40,
+                currentPrice: 4159.50,
                 priceUnit: "USD/oz",
-                change24h: +0.85,
-                change30d: +6.12,
+                change24h: -3.74,
+                change30d: +8.45,
                 correlationWithBTC_30d: +0.68,
                 correlationWithBTC_90d: +0.62,
                 iconName: "sparkles",
-                note: "Vàng liên tục phá đỉnh lịch sử (ATH) theo dòng tiền phòng hộ lạm phát & thanh khoản M2 tăng."
+                note: "Vàng giao dịch ở vùng giá lịch sử theo xu hướng phi đô la hóa và nhu cầu dự trữ NHTW."
             ),
             CrossAssetTickerItem(
                 id: "us10y",
                 symbol: "US10Y",
                 name: "Lợi suất Trái phiếu Mỹ 10 Năm",
                 category: .bonds,
-                currentPrice: 3.74,
+                currentPrice: 5.25,
                 priceUnit: "%",
-                change24h: -0.05,
-                change30d: -0.42,
+                change24h: +1.22,
+                change30d: +0.15,
                 correlationWithBTC_30d: -0.54,
                 correlationWithBTC_90d: -0.48,
                 iconName: "chart.line.downtrend.xyaxis",
-                note: "Lợi suất 10Y giảm giảm chi phí vốn cho các quỹ đầu tư tài sản số."
+                note: "Lợi suất trái phiếu chính phủ Mỹ kỳ hạn 10 năm phản ánh kỳ vọng lãi suất và rủi ro kỳ hạn."
             ),
             CrossAssetTickerItem(
                 id: "spx",
                 symbol: "S&P 500",
                 name: "Chỉ số Chứng khoán Mỹ S&P 500",
                 category: .equities,
-                currentPrice: 5735.20,
+                currentPrice: 7709.50,
                 priceUnit: "pts",
-                change24h: +0.62,
-                change30d: +4.80,
+                change24h: -0.44,
+                change30d: +5.20,
                 correlationWithBTC_30d: +0.52,
                 correlationWithBTC_90d: +0.58,
                 iconName: "chart.line.uptrend.xyaxis",
-                note: "S&P 500 chạm đỉnh lịch sử, phản ánh khẩu vị chấp nhận rủi ro (Risk-On) rất mạnh của phố Wall."
+                note: "Chỉ số S&P 500 phản ánh khẩu vị chấp nhận rủi ro (Risk-On) của các định chế tài chính phố Wall."
             ),
             CrossAssetTickerItem(
                 id: "ndx",
                 symbol: "Nasdaq 100",
                 name: "Chỉ số Cổ phiếu Công nghệ Nasdaq 100",
                 category: .equities,
-                currentPrice: 20045.80,
+                currentPrice: 30366.20,
                 priceUnit: "pts",
-                change24h: +0.94,
-                change30d: +5.65,
+                change24h: -0.79,
+                change30d: +6.10,
                 correlationWithBTC_30d: +0.64,
                 correlationWithBTC_90d: +0.66,
                 iconName: "cpu",
-                note: "Dòng tiền công nghệ AI & Web3 tăng trưởng song hành với hệ sinh thái Crypto."
+                note: "Cổ phiếu công nghệ AI & bán dẫn duy trì dòng tiền tương quan cao với tài sản số."
             ),
             CrossAssetTickerItem(
                 id: "wti",
                 symbol: "Crude Oil",
                 name: "Dầu thô WTI (Crude Oil)",
                 category: .commodities,
-                currentPrice: 71.40,
+                currentPrice: 93.14,
                 priceUnit: "USD/bbl",
-                change24h: -1.15,
-                change30d: -4.20,
+                change24h: +0.79,
+                change30d: +7.80,
                 correlationWithBTC_30d: -0.22,
                 correlationWithBTC_90d: -0.15,
                 iconName: "fuelpump.fill",
-                note: "Giá dầu thô ổn định giúp giảm áp lực lạm phát năng lượng lên nền kinh tế toàn cầu."
+                note: "Giá dầu thô WTI giao dịch quanh $93/thùng theo biến động cung cầu năng lượng và địa chính trị."
             )
         ]
         
@@ -364,4 +364,133 @@ public struct GlobalMacroDataProvider: Sendable {
             lastUpdated: Date()
         )
     }
+    
+    // MARK: - Live Cross-Asset Fetching (Yahoo Finance Feeds)
+    
+    public func fetchGlobalMacroDataLive(marketTrend30d: Double? = nil) async -> GlobalMacroOverviewData {
+        let base = fetchGlobalMacroData(marketTrend30d: marketTrend30d)
+        let liveAssets = await fetchLiveCrossAssets(fallback: base.crossAssets)
+        return GlobalMacroOverviewData(
+            centralBanks: base.centralBanks,
+            inflationMetrics: base.inflationMetrics,
+            unemploymentRate: base.unemploymentRate,
+            nonFarmPayrollsK: base.nonFarmPayrollsK,
+            m2History: base.m2History,
+            crossAssets: liveAssets,
+            upcomingEvents: base.upcomingEvents,
+            macroRiskScore: base.macroRiskScore,
+            macroSentimentSummary: base.macroSentimentSummary,
+            lastUpdated: Date()
+        )
+    }
+    
+    public func fetchLiveCrossAssets(fallback: [CrossAssetTickerItem]) async -> [CrossAssetTickerItem] {
+        if let cached = await LiveMacroTickerCache.shared.getCached() {
+            return cached
+        }
+        
+        let symbolMap: [String: String] = [
+            "wti": "CL=F",
+            "gold": "GC=F",
+            "dxy": "DX-Y.NYB",
+            "spx": "%5EGSPC",
+            "ndx": "%5ENDX",
+            "us10y": "%5ETNX"
+        ]
+        
+        var liveResults: [String: (price: Double, change: Double)] = [:]
+        
+        await withTaskGroup(of: (String, Double, Double)?.self) { group in
+            for (id, ticker) in symbolMap {
+                group.addTask {
+                    guard let url = URL(string: "https://query1.finance.yahoo.com/v8/finance/chart/\(ticker)?interval=1d&range=5d") else {
+                        return nil
+                    }
+                    var req = URLRequest(url: url)
+                    req.timeoutInterval = 3.5
+                    req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", forHTTPHeaderField: "User-Agent")
+                    do {
+                        let (data, response) = try await URLSession.shared.data(for: req)
+                        if let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                            let decoded = try JSONDecoder().decode(YahooChartResponse.self, from: data)
+                            if let meta = decoded.chart.result?.first?.meta,
+                               let price = meta.regularMarketPrice {
+                                let change = meta.regularMarketChangePercent ?? 0.0
+                                return (id, price, change)
+                            }
+                        }
+                    } catch {
+                        // Silent fallback on connection timeout or offline mode
+                    }
+                    return nil
+                }
+            }
+            
+            for await item in group {
+                if let (id, price, change) = item {
+                    liveResults[id] = (price, change)
+                }
+            }
+        }
+        
+        let updated = fallback.map { item in
+            if let live = liveResults[item.id] {
+                return CrossAssetTickerItem(
+                    id: item.id,
+                    symbol: item.symbol,
+                    name: item.name,
+                    category: item.category,
+                    currentPrice: live.price,
+                    priceUnit: item.priceUnit,
+                    change24h: live.change,
+                    change30d: item.change30d,
+                    correlationWithBTC_30d: item.correlationWithBTC_30d,
+                    correlationWithBTC_90d: item.correlationWithBTC_90d,
+                    iconName: item.iconName,
+                    note: item.note
+                )
+            }
+            return item
+        }
+        
+        if !liveResults.isEmpty {
+            await LiveMacroTickerCache.shared.setCached(updated)
+        }
+        return updated
+    }
+}
+
+// MARK: - Thread-safe Cache & Decodable Support
+actor LiveMacroTickerCache {
+    static let shared = LiveMacroTickerCache()
+    private var cachedAssets: [CrossAssetTickerItem]?
+    private var lastFetch: Date?
+    private let ttl: TimeInterval = 45.0
+    
+    func getCached() -> [CrossAssetTickerItem]? {
+        guard let cached = cachedAssets, let last = lastFetch, Date().timeIntervalSince(last) < ttl else {
+            return nil
+        }
+        return cached
+    }
+    
+    func setCached(_ items: [CrossAssetTickerItem]) {
+        self.cachedAssets = items
+        self.lastFetch = Date()
+    }
+}
+
+private struct YahooChartResponse: Codable {
+    struct Chart: Codable {
+        struct ResultItem: Codable {
+            struct Meta: Codable {
+                let regularMarketPrice: Double?
+                let regularMarketChangePercent: Double?
+                let chartPreviousClose: Double?
+            }
+            let meta: Meta
+        }
+        let result: [ResultItem]?
+    }
+    let chart: Chart
 }

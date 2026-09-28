@@ -248,7 +248,7 @@ public struct GlobalMacroOverviewData: Sendable {
     public let unemploymentRate: Double // e.g. 4.2%
     public let nonFarmPayrollsK: Double // e.g. +142K
     public let m2History: [GlobalLiquidityM2Point]
-    public let crossAssets: [CrossAssetTickerItem]
+    public var crossAssets: [CrossAssetTickerItem]
     public let upcomingEvents: [EconomicEventItem]
     public let macroRiskScore: Int // 0 (Extreme Risk-Off) to 100 (Extreme Risk-On)
     public let macroSentimentSummary: String
