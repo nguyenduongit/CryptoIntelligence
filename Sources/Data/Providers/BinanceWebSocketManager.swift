@@ -60,7 +60,8 @@ public actor BinanceWebSocketManager {
         
         self.isConnected = true
         self.connectionStartTime = Date()
-        self.reconnectAttempt = 0
+        // reconnectAttempt is reset in handleIncomingText once data actually arrives,
+        // otherwise exponential backoff never grows when the server keeps refusing.
         self.statusHandler?(true)
         
         // Listen for messages
@@ -195,6 +196,7 @@ public actor BinanceWebSocketManager {
     }
     
     private func handleIncomingText(_ text: String) {
+        reconnectAttempt = 0
         guard let data = text.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return

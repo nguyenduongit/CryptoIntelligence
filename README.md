@@ -14,7 +14,7 @@
 | **Watchlist & Tickers 24h** | 🟢 **Live Binance Spot** | Token-bucket rate limiter < 50% trần Binance, cập nhật realtime qua WebSocket ticker stream. |
 | **Ghi Chú & Kế Hoạch Đầu Tư** | 🟢 **Local SQLite (GRDB)** | Bảng `research_notes` và `drawings` lưu trữ vĩnh viễn trên máy người dùng. |
 | **Phân Tích Kỹ Thuật Confluence** | 🟢 **Thuật Toán Real-Time** | `ConfluenceResearchEngine` tải nến 4H thật từ Binance, tính RSI-14, EMA20/50 cross, MACD histogram qua `IndicatorEngine`. |
-| **Hồ Sơ On-Chain, Macro, Tokenomics** | 🔬 **Research Catalog + Giá Live** | Mô hình định giá MVRV, LTH/STH, lịch họp Fed, phân bổ Vesting kết hợp lớp giá live Binance có gắn nhãn `DataSourceBadge`. |
+| **Hồ Sơ On-Chain, Macro, Tokenomics** | 🔬 **Research Catalog + Proxy + Giá Live** | MVRV/NUPL/Puell hiện là **chỉ số proxy tính từ nến và volume Binance**, không phải dữ liệu on-chain thật. Lịch họp Fed, phân bổ Vesting là catalog tĩnh. Một số phân hệ có dữ liệu dự phòng (fallback) khi API lỗi; nhãn `DataSourceBadge` hiện là chuỗi tĩnh, chưa phản ánh trạng thái thực tế (đang trong kế hoạch sửa). |
 
 ---
 
@@ -45,23 +45,30 @@ CryptoIntelligence/
 - **Trạng thái (State Management)**: `@Observable` (Observation framework) & Swift Actors (`actor BinanceCandleProvider`, `actor DatabaseManager`).
 - **Engine Chỉ Báo (Indicator Arithmetic)**:
   - SMA, EMA (12, 26, 50, 200, Ribbon), Bollinger Bands, RSI, StochRSI, MACD, ATR, VWAP, Volume MA.
-  - Được kiểm chứng toán học độc lập với sai số $\le 10^{-9}$ so với các thư viện chuẩn (Python `ta` / `pandas`).
+  - Kiểm thử đối chiếu với fixture tham chiếu `Tests/TestFixtures/ReferenceGenerator.py` (cài đặt lại cùng thuật toán bằng Python, sai số $\le 10^{-9}$). Lưu ý: EMA/RSI/MACD dùng seed SMA nên lệch so với `ta`/`pandas` (seed từ giá đầu) ở khoảng 50–100 nến đầu, rồi hội tụ.
 - **Cơ Sở Dữ Liệu**: **GRDB.swift 7.x** (SQLite Native với Migrations bảo toàn toàn vẹn dữ liệu).
 
 ---
 
 ## 🧪 Kiểm Thử Tự Động (Testing)
 
-Chạy toàn bộ test suite (119 tests bao gồm toán học chỉ báo, Anchored VWAP, benchmark 50,000 nến, Deribit Options, Multi-Exchange Orderbook, Portfolio Stress-Test, CRUD SQLite, rate limiter):
+Chạy toàn bộ test suite (khoảng 200 hàm test, số chính xác xem kết quả `swift test`; bao gồm toán học chỉ báo, Anchored VWAP, benchmark 50,000 nến, Deribit Options, Multi-Exchange Orderbook, Portfolio Stress-Test, CRUD SQLite, rate limiter):
 
 ```bash
 swift test
 ```
 
-Tất cả 119 tests đều vượt qua (100% pass) với độ trễ benchmark < 1s cho 50,000 nến và pan/zoom render ở tốc độ 600+ FPS.
+> Một số test gọi API mạng thật (Binance, DexScreener...) nên kết quả có thể phụ thuộc kết nối. Các con số benchmark (< 1s cho 50,000 nến, 600+ FPS) do tác giả đo trên máy riêng, chưa có bước kiểm chứng tự động trong repo.
 
 Build và khởi chạy ứng dụng macOS:
 
 ```bash
+swift run CryptoResearch
+```
+
+> Tên package/executable là `CryptoResearch` (xem `Package.swift`). Thư mục `CryptoResearch.app` nằm trong `.gitignore` nên không có sẵn sau khi clone; nếu muốn chạy dạng `.app` cần tự tạo bundle.
+
+```bash
+# (tùy chọn) sau khi tự tạo bundle CryptoResearch.app
 swift build && cp .build/debug/CryptoResearch CryptoResearch.app/Contents/MacOS/CryptoResearch && open CryptoResearch.app
 ```

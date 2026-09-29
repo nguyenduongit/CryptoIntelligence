@@ -69,14 +69,14 @@ public actor OnChainDataProvider {
         liveWhaleSwaps: [SmartMoneyDEXSwap],
         dailyCandles: [Candle]
     ) -> OnChainProfile {
-        let now = Date()
-        
         // --- 1. Real Whale Transactions mapped from live Binance aggTrades ---
         var whaleTxs: [WhaleTransaction] = []
-        for (idx, swap) in liveWhaleSwaps.prefix(8).enumerated() {
+        // These are large Binance spot taker trades, NOT on-chain transfers, so labels must not
+        // pretend to be institutional custody wallets.
+        for swap in liveWhaleSwaps.prefix(8) {
             let txType: WhaleTxType = swap.type == .buy ? .exchangeOutflow : .exchangeInflow
-            let fromLabel = swap.type == .buy ? "Binance Spot Orderbook" : "Ví Cá Voi Taker (\(swap.traderLabel))"
-            let toLabel = swap.type == .buy ? "Ví Lạnh Lưu Ký Tổ Chức #\(idx + 1)" : "Binance Spot Liquidity Pool"
+            let fromLabel = swap.type == .buy ? "Binance Spot Orderbook" : "Lệnh taker bán lớn (\(swap.traderLabel))"
+            let toLabel = swap.type == .buy ? "Lệnh taker mua lớn (Binance Spot)" : "Binance Spot Orderbook"
             
             whaleTxs.append(
                 WhaleTransaction(
@@ -91,30 +91,7 @@ public actor OnChainDataProvider {
             )
         }
         
-        // Fallback default whale txs if live trade list is empty
-        if whaleTxs.isEmpty {
-            let sampleAmount = max(10.0, (vol24h * 0.005) / max(0.0001, currentPrice))
-            whaleTxs = [
-                WhaleTransaction(
-                    id: "0x\(abs(symbol.hashValue).description.prefix(8))...live1",
-                    timestamp: now.addingTimeInterval(-1800),
-                    amountToken: sampleAmount * 1.5,
-                    amountUSD: sampleAmount * 1.5 * currentPrice,
-                    fromLabel: "Binance Prime Custody",
-                    toLabel: "Ví Lưu Ký Tổ Chức Dài Hạn",
-                    type: .exchangeOutflow
-                ),
-                WhaleTransaction(
-                    id: "0x\(abs(symbol.hashValue).description.prefix(8))...live2",
-                    timestamp: now.addingTimeInterval(-5400),
-                    amountToken: sampleAmount,
-                    amountUSD: sampleAmount * currentPrice,
-                    fromLabel: "Ví Cá Voi Nạp Sàn",
-                    toLabel: "Binance Hot Wallet",
-                    type: .exchangeInflow
-                )
-            ]
-        }
+        // No synthetic fallback: an empty list means no large live trades were found.
         
         // --- 2. Live Exchange Flow Proxy (Taker Buy/Sell Volume) ---
         let buyUSD = liveWhaleSwaps.filter { $0.type == .buy }.reduce(0.0) { $0 + $1.amountUSD }
