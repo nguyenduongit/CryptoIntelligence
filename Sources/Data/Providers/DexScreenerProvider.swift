@@ -58,6 +58,9 @@ public struct LiquidityOverviewProfile: Sendable, Codable, Equatable {
     public let estimatedSlippage50k: Double // % slippage for $50k order
     public let estimatedSlippage100k: Double // % slippage for $100k order
     
+    /// False when no DEX pool data could be fetched; UI must show "no data" instead of zeros.
+    public var hasDexData: Bool { !topPools.isEmpty }
+    
     public init(
         symbol: String,
         cexVolume24hUSD: Double,
@@ -97,7 +100,7 @@ public actor DexScreenerProvider {
         }
         
         guard let url = URL(string: "https://api.dexscreener.com/latest/dex/search?q=\(clean)") else {
-            return generateFallbackPools(for: clean)
+            return []
         }
         
         var request = URLRequest(url: url)
@@ -106,71 +109,82 @@ public actor DexScreenerProvider {
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200 else {
-                return generateFallbackPools(for: clean)
+            guard let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200,
+                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return []
             }
-            
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let pairs = json["pairs"] as? [[String: Any]], !pairs.isEmpty else {
-                return generateFallbackPools(for: clean)
+            let pools = Self.parsePools(from: json, symbol: clean)
+            if !pools.isEmpty {
+                cache[clean] = (pools, Date())
             }
-            
-            var parsedPools: [DEXPoolData] = []
-            for pair in pairs.prefix(6) {
-                let dexId = pair["dexId"] as? String ?? "dex"
-                let chainId = pair["chainId"] as? String ?? "ethereum"
-                let pairAddress = pair["pairAddress"] as? String ?? UUID().uuidString
-                let baseToken = pair["baseToken"] as? [String: Any] ?? [:]
-                let quoteToken = pair["quoteToken"] as? [String: Any] ?? [:]
-                let baseSym = baseToken["symbol"] as? String ?? clean
-                let quoteSym = quoteToken["symbol"] as? String ?? "USDC"
-                let priceUsd = Double(pair["priceUsd"] as? String ?? "0") ?? 0.0
-                
-                let liqDict = pair["liquidity"] as? [String: Any] ?? [:]
-                let liqUsd = (liqDict["usd"] as? NSNumber)?.doubleValue ?? 0.0
-                
-                let volDict = pair["volume"] as? [String: Any] ?? [:]
-                let vol24h = (volDict["h24"] as? NSNumber)?.doubleValue ?? 0.0
-                
-                let changeDict = pair["priceChange"] as? [String: Any] ?? [:]
-                let priceChange24h = (changeDict["h24"] as? NSNumber)?.doubleValue ?? 0.0
-                
-                let txnsDict = pair["txns"] as? [String: Any] ?? [:]
-                let h24Txns = txnsDict["h24"] as? [String: Any] ?? [:]
-                let buys = h24Txns["buys"] as? Int ?? 0
-                let sells = h24Txns["sells"] as? Int ?? 0
-                
-                let pairUrl = pair["url"] as? String ?? "https://dexscreener.com/\(chainId)/\(pairAddress)"
-                
-                let dexName = dexId.capitalized
-                parsedPools.append(
-                    DEXPoolData(
-                        dexId: dexId,
-                        dexName: dexName,
-                        chainId: chainId.capitalized,
-                        pairAddress: pairAddress,
-                        baseSymbol: baseSym,
-                        quoteSymbol: quoteSym,
-                        priceUSD: priceUsd,
-                        liquidityUSD: liqUsd,
-                        volume24hUSD: vol24h,
-                        priceChange24h: priceChange24h,
-                        txns24hBuys: buys,
-                        txns24hSells: sells,
-                        url: pairUrl
-                    )
-                )
-            }
-            
-            if !parsedPools.isEmpty {
-                cache[clean] = (parsedPools, Date())
-                return parsedPools
-            }
+            return pools
         } catch {
-            // Fallback gracefully
+            // No synthetic fallback: an empty list means "no DEX data available".
+            return []
+        }
+    }
+    
+    /// Pure parser (unit-testable without network). DexScreener search matches any token whose
+    /// name/symbol contains the query, so we keep only pairs whose base token is the asset itself
+    /// (or its common wrapped form) and that have meaningful liquidity.
+    public nonisolated static func parsePools(
+        from json: [String: Any],
+        symbol clean: String,
+        minLiquidityUSD: Double = 50_000
+    ) -> [DEXPoolData] {
+        guard let pairs = json["pairs"] as? [[String: Any]] else { return [] }
+        let acceptedSymbols: Set<String> = [clean, "W\(clean)", "CB\(clean)"]
+        var parsed: [DEXPoolData] = []
+        
+        for pair in pairs {
+            let baseToken = pair["baseToken"] as? [String: Any] ?? [:]
+            guard let baseSym = baseToken["symbol"] as? String,
+                  acceptedSymbols.contains(baseSym.uppercased()),
+                  let pairAddress = pair["pairAddress"] as? String else { continue }
+            
+            let priceUsd = Double(pair["priceUsd"] as? String ?? "0") ?? 0.0
+            let liqDict = pair["liquidity"] as? [String: Any] ?? [:]
+            let liqUsd = (liqDict["usd"] as? NSNumber)?.doubleValue ?? 0.0
+            guard priceUsd > 0, liqUsd >= minLiquidityUSD else { continue }
+            
+            let dexId = pair["dexId"] as? String ?? "dex"
+            let chainId = pair["chainId"] as? String ?? "ethereum"
+            let quoteToken = pair["quoteToken"] as? [String: Any] ?? [:]
+            let quoteSym = quoteToken["symbol"] as? String ?? "?"
+            
+            let volDict = pair["volume"] as? [String: Any] ?? [:]
+            let vol24h = (volDict["h24"] as? NSNumber)?.doubleValue ?? 0.0
+            
+            let changeDict = pair["priceChange"] as? [String: Any] ?? [:]
+            let priceChange24h = (changeDict["h24"] as? NSNumber)?.doubleValue ?? 0.0
+            
+            let txnsDict = pair["txns"] as? [String: Any] ?? [:]
+            let h24Txns = txnsDict["h24"] as? [String: Any] ?? [:]
+            let buys = h24Txns["buys"] as? Int ?? 0
+            let sells = h24Txns["sells"] as? Int ?? 0
+            
+            let pairUrl = pair["url"] as? String ?? "https://dexscreener.com/\(chainId)/\(pairAddress)"
+            
+            parsed.append(
+                DEXPoolData(
+                    dexId: dexId,
+                    dexName: dexId.capitalized,
+                    chainId: chainId.capitalized,
+                    pairAddress: pairAddress,
+                    baseSymbol: baseSym,
+                    quoteSymbol: quoteSym,
+                    priceUSD: priceUsd,
+                    liquidityUSD: liqUsd,
+                    volume24hUSD: vol24h,
+                    priceChange24h: priceChange24h,
+                    txns24hBuys: buys,
+                    txns24hSells: sells,
+                    url: pairUrl
+                )
+            )
         }
         
-        return generateFallbackPools(for: clean)
+        return Array(parsed.sorted { $0.liquidityUSD > $1.liquidityUSD }.prefix(6))
     }
     
     public func fetchLiquidityOverview(for symbol: String, currentPrice: Double, cexVolume24hUSD: Double) async -> LiquidityOverviewProfile {
@@ -179,53 +193,41 @@ public actor DexScreenerProvider {
         
         let totalDexLiq = pools.reduce(0.0) { $0 + $1.liquidityUSD }
         let totalDexVol = pools.reduce(0.0) { $0 + $1.volume24hUSD }
-        
         let effectiveCexVol = max(1_000_000.0, cexVolume24hUSD)
-        let effectiveDexVol = totalDexVol > 0 ? totalDexVol : (effectiveCexVol * 0.12)
-        let effectiveDexLiq = totalDexLiq > 0 ? totalDexLiq : (effectiveCexVol * 0.08)
         
-        let ratio = effectiveDexVol / (effectiveCexVol + effectiveDexVol)
+        // No DEX data: return zeros and let the UI show "no data" (see `hasDexData`).
+        // Do NOT invent DEX volume/liquidity or slippage.
+        guard !pools.isEmpty, totalDexLiq > 0 else {
+            return LiquidityOverviewProfile(
+                symbol: clean,
+                cexVolume24hUSD: effectiveCexVol,
+                dexVolume24hUSD: 0,
+                totalLiquidityDEXUSD: 0,
+                dexToCexVolumeRatio: 0,
+                topPools: [],
+                estimatedSlippage10k: 0,
+                estimatedSlippage50k: 0,
+                estimatedSlippage100k: 0
+            )
+        }
         
-        // Slippage estimation using constant product invariant formula: Price Impact = OrderSize / (Pool Liquidity * 0.5 + OrderSize)
-        let poolDepth = max(500_000.0, effectiveDexLiq * 0.5)
-        let slip10k = (10_000.0 / (poolDepth + 10_000.0)) * 100.0
-        let slip50k = (50_000.0 / (poolDepth + 50_000.0)) * 100.0
-        let slip100k = (100_000.0 / (poolDepth + 100_000.0)) * 100.0
+        let ratio = totalDexVol / (effectiveCexVol + totalDexVol)
+        
+        // Rough constant-product approximation: impact = size / (depth + size), depth = half of total liquidity.
+        // It treats liquidity summed across chains/pools as a single pool, so it is only an order-of-magnitude estimate.
+        let poolDepth = totalDexLiq * 0.5
+        func impact(_ size: Double) -> Double { (size / (poolDepth + size)) * 100.0 }
         
         return LiquidityOverviewProfile(
             symbol: clean,
             cexVolume24hUSD: effectiveCexVol,
-            dexVolume24hUSD: effectiveDexVol,
-            totalLiquidityDEXUSD: effectiveDexLiq,
+            dexVolume24hUSD: totalDexVol,
+            totalLiquidityDEXUSD: totalDexLiq,
             dexToCexVolumeRatio: ratio,
             topPools: pools,
-            estimatedSlippage10k: max(0.01, slip10k),
-            estimatedSlippage50k: max(0.05, slip50k),
-            estimatedSlippage100k: max(0.12, slip100k)
+            estimatedSlippage10k: impact(10_000.0),
+            estimatedSlippage50k: impact(50_000.0),
+            estimatedSlippage100k: impact(100_000.0)
         )
-    }
-    
-    private func generateFallbackPools(for baseAsset: String) -> [DEXPoolData] {
-        switch baseAsset {
-        case "BTC":
-            return [
-                DEXPoolData(dexId: "uniswap_v3", dexName: "Uniswap v3", chainId: "Ethereum", pairAddress: "0xcbcdf9626bc03e24f779434178a73a0b4bad62ed", baseSymbol: "WBTC", quoteSymbol: "USDC", priceUSD: 96000.0, liquidityUSD: 185_000_000.0, volume24hUSD: 45_000_000.0, priceChange24h: 1.2, txns24hBuys: 1420, txns24hSells: 1290, url: "https://dexscreener.com/ethereum/0xcbcdf9626bc03e24f779434178a73a0b4bad62ed"),
-                DEXPoolData(dexId: "curve", dexName: "Curve Finance", chainId: "Ethereum", pairAddress: "0xd51a44d3fae010294c616388b506acda1bfaae46", baseSymbol: "WBTC", quoteSymbol: "WETH", priceUSD: 96000.0, liquidityUSD: 82_000_000.0, volume24hUSD: 18_000_000.0, priceChange24h: 0.9, txns24hBuys: 640, txns24hSells: 580, url: "https://dexscreener.com/ethereum/0xd51a44d3fae010294c616388b506acda1bfaae46")
-            ]
-        case "ETH":
-            return [
-                DEXPoolData(dexId: "uniswap_v3", dexName: "Uniswap v3", chainId: "Ethereum", pairAddress: "0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640", baseSymbol: "WETH", quoteSymbol: "USDC", priceUSD: 2800.0, liquidityUSD: 220_000_000.0, volume24hUSD: 110_000_000.0, priceChange24h: 2.1, txns24hBuys: 4320, txns24hSells: 3980, url: "https://dexscreener.com/ethereum/0x88e6a0c2ddd26feeb64f039a2c41296fcb3f5640"),
-                DEXPoolData(dexId: "aerodrome", dexName: "Aerodrome", chainId: "Base", pairAddress: "0x6cdcb1c4a4d1c3c6d054b27ac5b77e893371cd66", baseSymbol: "WETH", quoteSymbol: "USDC", priceUSD: 2800.0, liquidityUSD: 65_000_000.0, volume24hUSD: 35_000_000.0, priceChange24h: 2.2, txns24hBuys: 2890, txns24hSells: 2650, url: "https://dexscreener.com/base/0x6cdcb1c4a4d1c3c6d054b27ac5b77e893371cd66")
-            ]
-        case "SOL":
-            return [
-                DEXPoolData(dexId: "raydium", dexName: "Raydium CLMM", chainId: "Solana", pairAddress: "Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE", baseSymbol: "SOL", quoteSymbol: "USDC", priceUSD: 180.0, liquidityUSD: 95_000_000.0, volume24hUSD: 85_000_000.0, priceChange24h: 3.4, txns24hBuys: 8400, txns24hSells: 7900, url: "https://dexscreener.com/solana/Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE"),
-                DEXPoolData(dexId: "orca", dexName: "Orca Whirlpools", chainId: "Solana", pairAddress: "FpCMFDFGYotvPU2GhMfbMRLtvHQ8MuUhyApQLXPrTW47", baseSymbol: "SOL", quoteSymbol: "USDT", priceUSD: 180.0, liquidityUSD: 42_000_000.0, volume24hUSD: 38_000_000.0, priceChange24h: 3.3, txns24hBuys: 3900, txns24hSells: 3750, url: "https://dexscreener.com/solana/FpCMFDFGYotvPU2GhMfbMRLtvHQ8MuUhyApQLXPrTW47")
-            ]
-        default:
-            return [
-                DEXPoolData(dexId: "uniswap_v3", dexName: "Uniswap v3", chainId: "Ethereum", pairAddress: "0x1234567890abcdef1234567890abcdef12345678", baseSymbol: baseAsset, quoteSymbol: "USDC", priceUSD: 1.0, liquidityUSD: 12_500_000.0, volume24hUSD: 3_800_000.0, priceChange24h: 1.5, txns24hBuys: 540, txns24hSells: 480, url: "https://dexscreener.com")
-            ]
-        }
     }
 }

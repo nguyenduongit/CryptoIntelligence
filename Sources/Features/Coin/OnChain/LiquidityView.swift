@@ -37,11 +37,13 @@ public struct LiquidityView: View {
                     switch viewModel.selectedSectionId {
                     case "cexDex":
                         // 1. CEX vs DEX Volume Split Card
-                        CexVsDexVolumeCardView(
-                            cexVolumeUSD: liq.cexVolume24hUSD,
-                            dexVolumeUSD: liq.dexVolume24hUSD,
-                            dexToCexRatio: liq.dexToCexVolumeRatio
-                        )
+                        if liq.hasDexData {
+                            CexVsDexVolumeCardView(
+                                cexVolumeUSD: liq.cexVolume24hUSD,
+                                dexVolumeUSD: liq.dexVolume24hUSD,
+                                dexToCexRatio: liq.dexToCexVolumeRatio
+                            )
+                        }
                         
                         // 2. Multi-Exchange Depth if available
                         if let book = viewModel.aggregatedOrderbook {
@@ -49,10 +51,14 @@ public struct LiquidityView: View {
                         }
                         
                         // 3. DEX Pools Summary
-                        DEXLiquidityPoolsCardView(
-                            pools: liq.topPools,
-                            totalDEXLiquidityUSD: liq.totalLiquidityDEXUSD
-                        )
+                        if liq.hasDexData {
+                            DEXLiquidityPoolsCardView(
+                                pools: liq.topPools,
+                                totalDEXLiquidityUSD: liq.totalLiquidityDEXUSD
+                            )
+                        } else {
+                            DexDataUnavailableCardView(symbol: symbol)
+                        }
                         
                     case "orderbookTWAP":
                         if let book = viewModel.aggregatedOrderbook {
@@ -71,19 +77,23 @@ public struct LiquidityView: View {
                         }
                         
                     case "dexPools":
-                        // 1. Dedicated DEX Liquidity Pools Table
-                        DEXLiquidityPoolsCardView(
-                            pools: liq.topPools,
-                            totalDEXLiquidityUSD: liq.totalLiquidityDEXUSD
-                        )
-                        
-                        // 2. Slippage overview for context
-                        SlippageCalculatorView(
-                            slippage10k: liq.estimatedSlippage10k,
-                            slippage50k: liq.estimatedSlippage50k,
-                            slippage100k: liq.estimatedSlippage100k,
-                            totalLiquidityUSD: liq.totalLiquidityDEXUSD
-                        )
+                        if liq.hasDexData {
+                            // 1. Dedicated DEX Liquidity Pools Table
+                            DEXLiquidityPoolsCardView(
+                                pools: liq.topPools,
+                                totalDEXLiquidityUSD: liq.totalLiquidityDEXUSD
+                            )
+                            
+                            // 2. Slippage overview for context
+                            SlippageCalculatorView(
+                                slippage10k: liq.estimatedSlippage10k,
+                                slippage50k: liq.estimatedSlippage50k,
+                                slippage100k: liq.estimatedSlippage100k,
+                                totalLiquidityUSD: liq.totalLiquidityDEXUSD
+                            )
+                        } else {
+                            DexDataUnavailableCardView(symbol: symbol)
+                        }
                         
                     case "slippage":
                         // 1. Whale Market Impact & TWAP Simulator if available
@@ -92,19 +102,23 @@ public struct LiquidityView: View {
                         }
                         
                         // 2. AMM Constant Product Slippage & Price Impact Simulator
-                        SlippageCalculatorView(
-                            slippage10k: liq.estimatedSlippage10k,
-                            slippage50k: liq.estimatedSlippage50k,
-                            slippage100k: liq.estimatedSlippage100k,
-                            totalLiquidityUSD: liq.totalLiquidityDEXUSD
-                        )
-                        
-                        // 2. CEX vs DEX Volume Reference
-                        CexVsDexVolumeCardView(
-                            cexVolumeUSD: liq.cexVolume24hUSD,
-                            dexVolumeUSD: liq.dexVolume24hUSD,
-                            dexToCexRatio: liq.dexToCexVolumeRatio
-                        )
+                        if liq.hasDexData {
+                            SlippageCalculatorView(
+                                slippage10k: liq.estimatedSlippage10k,
+                                slippage50k: liq.estimatedSlippage50k,
+                                slippage100k: liq.estimatedSlippage100k,
+                                totalLiquidityUSD: liq.totalLiquidityDEXUSD
+                            )
+                            
+                            // 3. CEX vs DEX Volume Reference
+                            CexVsDexVolumeCardView(
+                                cexVolumeUSD: liq.cexVolume24hUSD,
+                                dexVolumeUSD: liq.dexVolume24hUSD,
+                                dexToCexRatio: liq.dexToCexVolumeRatio
+                            )
+                        } else {
+                            DexDataUnavailableCardView(symbol: symbol)
+                        }
                         
                     case "exchangeFlows":
                         if let onchain = viewModel.onchainProfile {
