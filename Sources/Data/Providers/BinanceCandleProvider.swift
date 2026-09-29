@@ -24,15 +24,20 @@ public actor BinanceCandleProvider: CandleProvider {
     private func executeRequest(path: String, queryItems: [URLQueryItem], weight: Int = 2) async throws -> (Data, HTTPURLResponse) {
         try await rateLimiter.acquirePermit(weight: weight)
         
-        let urlsToTry = [
-            URL(string: "\(primaryBaseURL)\(path)")!,
-            URL(string: "\(fallbackBaseURL)\(path)")!
-        ]
+        // Base URLs can be edited by the user in Settings, so never force-unwrap them.
+        let urlsToTry = [primaryBaseURL, fallbackBaseURL].compactMap { URL(string: "\($0)\(path)") }
+        guard !urlsToTry.isEmpty else {
+            throw NSError(
+                domain: "BinanceCandleProvider",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "URL cơ sở Binance không hợp lệ. Kiểm tra lại trong Cài đặt."]
+            )
+        }
         
         var lastError: Error?
         
         for baseURL in urlsToTry {
-            var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true)!
+            guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else { continue }
             components.queryItems = queryItems
             
             guard let url = components.url else { continue }
